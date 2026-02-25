@@ -1,11 +1,11 @@
-"""End-to-end test: create → chat → convene → accept/reject → export."""
+"""End-to-end test: create → chat → convene → accept/reject → timeline → export."""
 import requests
 import json
 import sys
 import re
 import time
 
-BASE = "http://localhost:8890"
+BASE = sys.argv[1] if len(sys.argv) > 1 else "http://159.203.126.156:8890"
 
 def strip_html(html):
     text = re.sub(r'<[^>]+>', '\n', html)
@@ -36,7 +36,7 @@ print("Connected: %s/%s (%d files in tree)" % (data["owner"], data["repo_name"],
 
 # ── Step 3: Send directive to Lead ──
 print("\n" + "=" * 70)
-print("STEP 3: Lead analysis (directive → verified response)")
+print("STEP 3: Lead analysis (directive -> verified response)")
 print("=" * 70)
 directive = (
     "First, list every file you have loaded. Then trace every data flow "
@@ -107,9 +107,31 @@ print("Decide response: %d (%d chars)" % (resp.status_code, len(resp.text)))
 decide_text = strip_html(resp.text)
 print(decide_text[:1000])
 
-# ── Step 6: Export ──
+# ── Step 6: Timeline ──
 print("\n" + "=" * 70)
-print("STEP 6: Export design document")
+print("STEP 6: Evolution Timeline")
+print("=" * 70)
+resp_tl = requests.get(BASE + "/api/timeline/%s" % session_id, timeout=10)
+print("Timeline response: %d" % resp_tl.status_code)
+if resp_tl.status_code == 200:
+    tl_data = resp_tl.json()
+    rounds = tl_data.get("rounds", [])
+    print("Rounds in timeline: %d" % len(rounds))
+    for r in rounds:
+        print("  Round %d: %d proposed, %d accepted, %d rejected" % (
+            r["round_number"], r["changes_proposed"], r["changes_accepted"], r["changes_rejected"]))
+        if r.get("attribution"):
+            for model, attr in r["attribution"].items():
+                print("    %s: %d proposed, %d accepted, %d rejected" % (
+                    model, attr["proposed"], attr["accepted"], attr["rejected"]))
+    timeline_ok = len(rounds) >= 1 and rounds[0]["changes_proposed"] > 0
+else:
+    print("Timeline FAILED: %s" % resp_tl.text[:300])
+    timeline_ok = False
+
+# ── Step 7: Export ──
+print("\n" + "=" * 70)
+print("STEP 7: Export design document")
 print("=" * 70)
 resp = requests.get(BASE + "/api/export/%s" % session_id, timeout=30)
 print("Export response: %d (%d chars)" % (resp.status_code, len(resp.text)))
@@ -128,5 +150,9 @@ print("Session:     %s" % session_id)
 print("Lead time:   %.0fs" % lead_time)
 print("Convene time: %.0fs" % convene_time)
 print("Changes:     %d proposed, %d accepted, 1 rejected" % (len(change_ids), len(change_ids) - 1))
+print("Timeline:    %s" % ("OK" if timeline_ok else "FAILED"))
 print("Export:      %s" % ("OK" if resp.status_code == 200 else "FAILED"))
-print("\nView at: http://159.203.126.156:8890/session/%s" % session_id)
+
+all_pass = resp.status_code == 200 and timeline_ok and len(change_ids) > 0
+print("\nRESULT:      %s" % ("ALL PASS" if all_pass else "SOME FAILURES"))
+print("View at: %s/session/%s" % (BASE, session_id))

@@ -257,7 +257,7 @@ class SessionManager:
         db = await get_db()
         try:
             await db.execute(
-                """INSERT INTO changelog (id, session_id, round_number, category, description,
+                """INSERT OR REPLACE INTO changelog (id, session_id, round_number, category, description,
                    source_reviewers, confidence, accepted, rejection_reason) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     entry_id, session_id, round_number,
