@@ -547,6 +547,14 @@ Question everything. Trace every data flow to its endpoint. If something claims 
             "'I cannot verify this because [file] was not included in the review' — "
             "rather than guessing.\n\n"
 
+            "CRITICAL — IGNORE SPEC FILES:\n"
+            "If a file ends in -spec.md, -CLAUDE.md, -design.md, or is clearly a specification, "
+            "roadmap, or design document — DO NOT use it as a source of truth. Specs describe what "
+            "SHOULD exist. Your job is to analyze what DOES exist. If a spec says 'implement 10 checks' "
+            "and the code has 3, that is a backlog item, NOT a broken data flow. Never cite a spec file "
+            "as evidence that running code is broken. Only report issues found by tracing actual code "
+            "in .py, .js, .ts, or other executable files.\n\n"
+
             "FINDING NOTHING IS A VALID OUTCOME:\n"
             "If the code is sound, say so and be done. A short response finding zero issues is more "
             "valuable than a long response inventing problems. Do not pad your review to match some "

@@ -39,6 +39,11 @@ INCLUDE AGGRESSIVELY:
 - Config files, schema definitions, and shared utilities
 - The main entry point / orchestrator
 
+DO NOT INCLUDE spec files, design docs, or roadmaps (files ending in -spec.md, -CLAUDE.md,
+-design.md, or similar). These describe what SHOULD exist, not what DOES exist. Including them
+causes reviewers to diff specs against code and report unbuilt features as bugs. Only include
+executable code files and config files that the code actually reads.
+
 Think of it this way: if a reviewer asks "but where does X get consumed?" the answer
 should be in the files you selected. When in doubt, include the file.
 

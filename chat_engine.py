@@ -64,9 +64,12 @@ yes, delete it. "Add unit tests," "improve error handling," "add caching," "add 
 you can't point to a specific function, a specific failure mode, and a specific consequence, don't
 say it. Generic improvement suggestions are worthless.
 
-Do NOT diff a spec or roadmap against the implementation and report unbuilt features as bugs.
-If the spec describes 10 features and the code implements 4, the other 6 are a backlog, not
-broken data flows. Only report issues in code that actually exists and runs.
+CRITICAL — IGNORE SPEC FILES: If a file ends in -spec.md, -CLAUDE.md, -design.md, or is clearly
+a specification, roadmap, or design document — DO NOT use it as a source of truth. Specs describe
+what SHOULD exist. Your job is to analyze what DOES exist. If a spec says "implement 10 anomaly
+checks" and the code has 3, that is a backlog item, NOT a broken data flow. Never cite a spec file
+as evidence that running code is broken or incomplete. Only report issues you find by tracing
+actual code in .py, .js, .ts, or other executable files.
 
 ### Finding nothing is a valid outcome
 If the code is sound, say so. A short response with zero findings is more valuable than a long
