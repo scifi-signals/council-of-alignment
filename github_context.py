@@ -21,6 +21,10 @@ SKIP_DIRS = {"__pycache__", "node_modules", ".git", "venv", ".venv", ".tox",
              ".mypy_cache", "dist", "build", ".next", ".nuxt", "coverage",
              ".pytest_cache", "eggs", "*.egg-info"}
 
+# Files that are auto-generated or too large to be useful for code review
+SKIP_FILES = {"data.json", "package-lock.json", "yarn.lock", "poetry.lock",
+              "Cargo.lock", "go.sum", "pnpm-lock.yaml"}
+
 _REPO_PATTERN = re.compile(r"github\.com/(?P<owner>[^/]+)/(?P<repo>[^/?#]+)")
 
 FILE_SELECT_PROMPT = """You are selecting files for a code review. You have:
@@ -98,6 +102,8 @@ def _should_include(path: str) -> bool:
             return False
     # Check extension
     fname = parts[-1]
+    if fname in SKIP_FILES:
+        return False
     if "." not in fname:
         return False
     ext = "." + fname.rsplit(".", 1)[-1].lower()

@@ -10,8 +10,8 @@ _TIER_2 = {".md", ".txt", ".rst", ".html", ".sql", ".sh"}
 _TIER_3 = {".json", ".yaml", ".yml", ".toml", ".css", ".csv", ".xml", ".cfg", ".ini",
            ".env.example", ".gitignore", ".dockerfile"}
 
-CHAR_BUDGET = 200_000       # ~50K tokens — leaves room for conversation + prompts
-PER_FILE_CAP = 40_000       # no single file eats more than ~10K tokens
+CHAR_BUDGET = 400_000       # ~100K tokens — fits full source of medium repos
+PER_FILE_CAP = 60_000       # no single file eats more than ~15K tokens
 
 
 def _tier(filename: str) -> int:
