@@ -243,12 +243,32 @@ class ChatEngine:
                                               priority_files=priority_files)
 
             # Include GitHub repo files if connected
-            github_context = await self._get_github_context(
+            github_context, github_loaded_files = await self._get_github_context(
                 session_id, lead_model, messages, att_rows, db
             )
             has_code_context = bool(att_rows) or bool(github_context)
             if github_context:
                 system += github_context
+
+            # Build file inventory and inject into the conversation so the model
+            # knows exactly what files exist — prevents hallucinating file names
+            if has_code_context:
+                all_files = sorted(set(
+                    [a["filename"] for a in att_rows] + github_loaded_files
+                ))
+                inventory = (
+                    "\n\n---\n"
+                    "FILE INVENTORY — You have access to EXACTLY these files and no others. "
+                    "Do not reference any file not on this list.\n"
+                    + "\n".join(f"  - {f}" for f in all_files)
+                    + "\n---"
+                )
+                # Append inventory to the last user message in the conversation
+                if messages and messages[-1]["role"] == "user":
+                    messages[-1] = {
+                        "role": "user",
+                        "content": messages[-1]["content"] + inventory,
+                    }
 
             # Call Lead AI
             result = await self.dispatcher.chat(lead_model, messages, system=system)
@@ -317,8 +337,11 @@ class ChatEngine:
     async def _get_github_context(
         self, session_id: str, lead_model: str,
         messages: list[dict], att_rows: list[dict], db
-    ) -> str:
-        """Fetch GitHub files for the Lead AI's context. Cache on first use."""
+    ) -> tuple[str, list[str]]:
+        """Fetch GitHub files for the Lead AI's context. Cache on first use.
+
+        Returns (context_string, list_of_loaded_filenames).
+        """
         try:
             cursor = await db.execute(
                 "SELECT owner, repo_name, default_branch, tree_json, chat_files_json "
@@ -327,7 +350,7 @@ class ChatEngine:
             )
             repo = await cursor.fetchone()
             if not repo or not repo["tree_json"]:
-                return ""
+                return "", []
 
             # Cache hit — deserialize and use
             if repo["chat_files_json"]:
@@ -342,14 +365,14 @@ class ChatEngine:
                     self.dispatcher, lead_model, conversation, tree, max_files=30
                 )
                 if not selected_paths:
-                    return ""
+                    return "", []
 
                 file_contents = await self.github_ctx.fetch_file_contents(
                     repo["owner"], repo["repo_name"],
                     selected_paths, repo["default_branch"],
                 )
                 if not file_contents:
-                    return ""
+                    return "", []
 
                 # Cache the result
                 await db.execute(
@@ -366,7 +389,9 @@ class ChatEngine:
             ]
 
             if not file_contents:
-                return ""
+                return "", []
+
+            loaded_filenames = [f["filename"] for f in file_contents]
 
             context = build_attachment_context(
                 file_contents,
@@ -376,7 +401,7 @@ class ChatEngine:
 
             # Show the full file tree so the Lead knows what exists beyond loaded files
             tree = json.loads(repo["tree_json"])
-            loaded_paths = {f["filename"] for f in file_contents}
+            loaded_paths = set(loaded_filenames)
             not_loaded = [p for p in tree if p not in loaded_paths]
             if not_loaded:
                 context += (
@@ -384,10 +409,10 @@ class ChatEngine:
                     "```\n" + "\n".join(sorted(not_loaded)) + "\n```\n"
                 )
 
-            return context
+            return context, loaded_filenames
         except Exception as e:
             logger.warning("GitHub chat context failed: %s", e)
-            return ""
+            return "", []
 
     async def get_design_state(self, session_id: str) -> str:
         """Ask the Lead AI to extract the current design from conversation."""

@@ -419,7 +419,7 @@ async function sendChat(e) {
         const hasGitHubRepo = !!document.getElementById('github-connected');
         const hasAttachments = document.querySelectorAll('.attachment-item').length > 0;
         if (hasGitHubRepo || hasAttachments) {
-            message = 'Trace every data flow in this codebase end-to-end. Report only broken chains.';
+            message = 'First, list every file you have access to. Then trace every data flow end-to-end using ONLY those files. Report only broken chains — if nothing is broken, say so and stop.';
         } else {
             return false;
         }
