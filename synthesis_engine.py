@@ -36,6 +36,8 @@ Below is the complete conversation between the user and the Lead AI. This is eve
 
 {stats_section}
 
+{previous_changes}
+
 ---
 
 Now produce a synthesis in EXACTLY this JSON format. No other text before or after the JSON.
@@ -91,7 +93,8 @@ CRITICAL RULES FOR PROPOSED CHANGES:
 - Maximum 5 proposed changes. Quality over quantity. If you only have 3 strong ones, stop at 3. Do NOT pad with generic software advice to fill a quota.
 - No corporate-speak. No "leverage", "enhance", "optimize", "streamline", "robust", "comprehensive", "actionable insights", "value proposition", "data portability", "clean separation", "modular architecture". Write like a human.
 - SELF-CHECK: Before including each proposed change, ask yourself: "Could a consultant say this about literally any project without reading the design?" If yes, delete it. Only keep changes that prove you actually read and understood THIS specific project.
-- Test each description: would a normal person read this and know exactly what to do tomorrow morning? If not, rewrite it."""
+- Test each description: would a normal person read this and know exactly what to do tomorrow morning? If not, rewrite it.
+- DEDUPLICATION: If a "Previously Decided Changes" section appears above, DO NOT re-propose any change that was already accepted — it's done. DO NOT re-propose rejected changes unless a reviewer explicitly argues for reconsideration with new evidence not available in the previous round. Focus only on NEW issues found in this round."""
 
 
 async def synthesize_reviews(
@@ -119,11 +122,25 @@ async def synthesize_reviews(
             acc = stats.get("acceptance_rate", "N/A")
             stats_section += f"- {name}: {acc}% acceptance rate\n"
 
+    previous_changes = ""
+    if previous_changelog:
+        previous_changes = "## Previously Decided Changes\n\n"
+        previous_changes += "These changes were proposed in earlier rounds. The user has already made decisions on them.\n\n"
+        for entry in previous_changelog:
+            status = "ACCEPTED" if entry.get("accepted") else "REJECTED"
+            reason = ""
+            if not entry.get("accepted") and entry.get("rejection_reason"):
+                reason = f" (reason: {entry['rejection_reason']})"
+            reviewers = ", ".join(entry.get("source_reviewers", []))
+            previous_changes += f"- [{status}] {entry['description']} (from: {reviewers}){reason}\n"
+        previous_changes += "\n"
+
     prompt = SYNTHESIS_PROMPT.format(
         council_count=len(reviews),
         design=design,
         reviews_text=reviews_text,
         stats_section=stats_section,
+        previous_changes=previous_changes,
     )
 
     messages = [{"role": "user", "content": prompt}]
