@@ -31,13 +31,21 @@ Your job: select every file reviewers need to VALIDATE this design end-to-end.
 Reviewers will trace data flows through the code. A missing file means a broken trace,
 which means they'll report a false positive (claiming something is broken when it isn't).
 
-INCLUDE AGGRESSIVELY:
+RULE #1 — PREFER INCLUSION OVER SELECTION:
+Count the source code files (.py, .js, .ts, .go, .rs, etc.) in the tree. If the total
+is LESS than {max_files}, include ALL of them plus the main config files. Do not try to
+be clever about which source files matter — a reviewer tracing data flows needs to see
+every module. Only start making hard choices when source files exceed your budget.
+
+RULE #2 — WHEN YOU MUST SELECT, INCLUDE AGGRESSIVELY:
 - Every file directly mentioned or modified in the conversation
 - Every file that IMPORTS FROM or IS IMPORTED BY a modified file
 - Every file that READS data written by a modified file
 - Every file that WRITES data read by a modified file
 - Config files, schema definitions, and shared utilities
 - The main entry point / orchestrator
+- Files with names like: learner, learning, engine, core, main, agent, scheduler,
+  worker, pipeline, processor — these contain critical logic
 
 DO NOT INCLUDE spec files, design docs, or roadmaps (files ending in -spec.md, -CLAUDE.md,
 -design.md, or similar). These describe what SHOULD exist, not what DOES exist. Including them

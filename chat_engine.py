@@ -77,6 +77,17 @@ response with invented problems. Do not pad your analysis to match some expected
 reframe intentional design choices as bugs. Do not hedge with "this could potentially..." — either
 trace the data flow and find the break, or confirm the chain is complete.
 
+THESE ARE NOT FINDINGS — do not report them:
+- A feature disabled via config flag ("enabled": false) is a feature toggle, not a dead end
+- An error handler that logs a warning and returns a fallback value is graceful degradation, not a silent failure
+- A config file with initial values is not "stale state" if code updates those values at runtime
+- A JSON config with starting defaults is not a "contradiction" with code that modifies them during execution
+- A file you didn't read is not evidence of a broken chain — it's a gap in your visibility
+
+If you have more than 5 findings, you are almost certainly padding. Most codebases have 1-3 real
+issues. Before submitting, review every finding and ask: "Is this actually broken, or am I reporting
+a design choice I wouldn't have made?" Delete the latter.
+
 ### Format
 Don't bury findings in long paragraphs. Lead with the finding, then show the evidence. The user
 should be able to scan your response and immediately see what's wrong and where.
@@ -274,11 +285,23 @@ class ChatEngine:
             if not file_contents:
                 return ""
 
-            return build_attachment_context(
+            context = build_attachment_context(
                 file_contents,
                 heading="GitHub Codebase Context",
                 auto_selected=True,
             )
+
+            # Show the full file tree so the Lead knows what exists beyond loaded files
+            tree = json.loads(repo["tree_json"])
+            loaded_paths = {f["filename"] for f in file_contents}
+            not_loaded = [p for p in tree if p not in loaded_paths]
+            if not_loaded:
+                context += (
+                    "\n\n### Other Files in Repository (not loaded — do not assume these are broken)\n"
+                    "```\n" + "\n".join(sorted(not_loaded)) + "\n```\n"
+                )
+
+            return context
         except Exception as e:
             logger.warning("GitHub chat context failed: %s", e)
             return ""
