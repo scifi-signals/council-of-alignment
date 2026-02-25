@@ -23,7 +23,15 @@ class ModelDispatcher:
     async def chat(self, model_key: str, messages: list[dict], system: str = None) -> dict:
         """Send messages to a model. Returns {"content": str, "tokens_in": int, "tokens_out": int, "cost": float}."""
         if use_openrouter():
-            return await self._chat_openrouter(model_key, messages, system)
+            try:
+                return await self._chat_openrouter(model_key, messages, system)
+            except RuntimeError as e:
+                if "402" in str(e) or "credits" in str(e).lower():
+                    # OpenRouter credits exhausted — fall back to direct API
+                    import logging
+                    logging.getLogger(__name__).warning("OpenRouter credits low, falling back to direct API for %s", model_key)
+                    return await self._chat_direct(model_key, messages, system)
+                raise
         return await self._chat_direct(model_key, messages, system)
 
     async def _chat_openrouter(self, model_key: str, messages: list[dict], system: str = None) -> dict:
