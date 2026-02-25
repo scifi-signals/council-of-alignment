@@ -1,0 +1,680 @@
+{% extends "base.html" %}
+{% block title %}{{ session.title }} — Council of Alignment{% endblock %}
+{% block container_class %}container-session{% endblock %}
+
+{% block content %}
+<div class="session-page">
+    <!-- Session header bar -->
+    <div class="session-header">
+        <div class="session-header-left">
+            <h2>{{ session.title }}</h2>
+            <span class="model-chip model-chip-{{ session.lead_model }}">
+                {{ models[session.lead_model].name }} (Lead)
+            </span>
+        </div>
+        <div class="session-header-actions">
+            <a href="/api/export/{{ session.id }}" class="btn btn-secondary">Export</a>
+        </div>
+    </div>
+
+    <!-- Session body: single column by default, side-by-side when undecided changes -->
+    <div class="session-body{% if synthesis and has_undecided %} has-council{% endif %}" id="session-body">
+
+    <!-- Chat area -->
+    <div class="chat-area">
+        <div class="chat-messages" id="chat-messages">
+            {% if not messages and not synthesis %}
+            <div class="message assistant-message" id="empty-chat">
+                <div class="message-sender" style="color: {{ models[session.lead_model].color }}">
+                    {{ models[session.lead_model].name }}
+                </div>
+                <div class="message-content markdown-body">Welcome! I'm your Lead AI for this session.<br><br>**Have an idea?** Describe it and I'll help you think it through.<br><br>**Have a codebase?** Paste a GitHub link below to connect your repo, or upload a .zip — I'll pull in the relevant files automatically.<br><br>When you're ready, hit **Convene the Council** for independent reviews from a panel of AI models.</div>
+            </div>
+            {% endif %}
+
+            {% for msg in messages %}
+            <div class="message {{ 'user-message' if msg.role == 'user' else 'assistant-message' }}">
+                <div class="message-sender"
+                     {% if msg.role == 'assistant' %}style="color: {{ models[session.lead_model].color }}"{% endif %}>
+                    {{ "You" if msg.role == "user" else models[session.lead_model].name }}
+                </div>
+                <div class="message-content markdown-body">{{ msg.content | e | replace('\n', '<br>') }}</div>
+            </div>
+            {% endfor %}
+
+            {% if synthesis %}
+            <!-- Council review rendered in chat flow -->
+            <div class="council-review-content" id="council-review-container">
+                <h2>Council Review &mdash; Round {{ round_roman }}</h2>
+
+                <div class="council-tabs">
+                    <button class="tab active" data-tab="synthesis" style="--tab-color: var(--accent)" onclick="switchTab('synthesis', this)"><span class="tab-dot" style="background: var(--accent)"></span>Synthesis</button>
+                    {% for r in reviews %}
+                    <button class="tab" data-tab="reviewer-{{ r.model_name }}" style="--tab-color: {{ models[r.model_name].color }}" onclick="switchTab('reviewer-{{ r.model_name }}', this)"><span class="tab-dot" style="background: {{ models[r.model_name].color }}"></span>{{ models[r.model_name].name }}</button>
+                    {% endfor %}
+                </div>
+
+                <!-- Synthesis tab -->
+                <div class="tab-content active" id="tab-synthesis">
+                    <div class="chamber-panel">
+                        <div class="synthesis-lead-note">
+                            <span class="tab-dot" style="background: {{ models[session.lead_model].color }}; color: {{ models[session.lead_model].color }}"></span>
+                            Synthesized by <span class="model-chip model-chip-{{ session.lead_model }}">{{ models[session.lead_model].name }}</span> <span class="dim">(Lead)</span>
+                        </div>
+                        {% if synthesis.consensus %}
+                        <div class="synthesis-section">
+                            <h4>Points of Accord</h4>
+                            <ul>
+                            {% for c in synthesis.consensus %}
+                                <li>{{ c.point }} <div class="change-source">{% for r in c.reviewers %}<span class="model-chip model-chip-{{ r|lower }}">{{ r }}</span> {% endfor %}</div></li>
+                            {% endfor %}
+                            </ul>
+                        </div>
+                        {% endif %}
+
+                        {% if synthesis.majority %}
+                        <div class="synthesis-section">
+                            <h4>Majority Position</h4>
+                            <ul>
+                            {% for m in synthesis.majority %}
+                                <li>{{ m.point }}
+                                    <div class="change-source"><span class="dim">For:</span> {% for r in m.for %}<span class="model-chip model-chip-{{ r|lower }}">{{ r }}</span> {% endfor %}</div>
+                                    {% if m.against_reasoning and m.against %}
+                                    <div class="dissent-detail">{% for r in m.against %}<span class="model-chip model-chip-{{ r|lower }}">{{ r }}</span> {% endfor %} <span class="dim">disagrees:</span> {{ m.against_reasoning }}</div>
+                                    {% elif m.against %}
+                                    <div class="change-source"><span class="dim">Against:</span> {% for r in m.against %}<span class="model-chip model-chip-{{ r|lower }}">{{ r }}</span> {% endfor %}</div>
+                                    {% endif %}
+                                </li>
+                            {% endfor %}
+                            </ul>
+                        </div>
+                        {% endif %}
+
+                        {% if synthesis.unique_insights %}
+                        <div class="synthesis-section">
+                            <h4>Lone Warnings</h4>
+                            <ul>
+                            {% for u in synthesis.unique_insights %}
+                                <li>{{ u.insight }} <div class="change-source"><span class="model-chip model-chip-{{ u.reviewer|lower }}">{{ u.reviewer }}</span></div></li>
+                            {% endfor %}
+                            </ul>
+                        </div>
+                        {% endif %}
+
+                        {% if synthesis.disagreements %}
+                        <div class="synthesis-section">
+                            <h4>Points of Dissent</h4>
+                            <ul>
+                            {% for d in synthesis.disagreements %}
+                                <li>{{ d.topic }}
+                                {% for model, pos in d.positions.items() %}
+                                    <br><span class="model-chip model-chip-{{ model|lower }}">{{ model }}</span> <span class="dim">{{ pos }}</span>
+                                {% endfor %}
+                                </li>
+                            {% endfor %}
+                            </ul>
+                        </div>
+                        {% endif %}
+
+                        {% if synthesis.overall_verdict %}
+                        <div class="verdict">
+                            <div class="verdict-badges">
+                                <span class="badge {% if synthesis.overall_verdict.ready_to_build %}badge-accepted{% else %}badge-rejected{% endif %}">
+                                    {{ "Ready to build" if synthesis.overall_verdict.ready_to_build else "Not ready yet" }}
+                                </span>
+                                <span class="badge {% if synthesis.overall_verdict.another_round_recommended %}badge-warning{% else %}badge-accepted{% endif %}">
+                                    {{ "Another round recommended" if synthesis.overall_verdict.another_round_recommended else "No more rounds needed" }}
+                                </span>
+                            </div>
+                            <p>{{ synthesis.overall_verdict.summary }}</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Reviewer tabs -->
+                {% for r in reviews %}
+                <div class="tab-content" id="tab-reviewer-{{ r.model_name }}">
+                    <div class="chamber-panel"><div class="review-body markdown-body">{{ r.response | e | replace('\n', '<br>') }}</div></div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Fixed bottom: Convene button + file upload + input -->
+        <div class="chat-input-bar">
+            <div class="chat-input-wrapper">
+                <div class="convene-row">
+                    <button id="convene-btn" class="btn btn-convene" onclick="conveneCouncil()">
+                        ⚖ Convene the Council
+                    </button>
+                </div>
+                <form id="chat-form" onsubmit="return sendChat(event)">
+                    <div class="chat-input-inner">
+                        <textarea id="chat-textarea" name="message" placeholder="Describe your design, or drop a file here..." rows="2"
+                                  onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault(); this.closest('form').requestSubmit();}"></textarea>
+                        <button type="submit" id="send-btn" class="btn btn-primary btn-send">Send</button>
+                    </div>
+                </form>
+                <div class="file-upload-area">
+                    <label class="file-upload-btn" for="file-input">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                        Attach file to chat
+                    </label>
+                    <input type="file" id="file-input" style="display: none" accept=".md,.txt,.json,.py,.js,.html,.css,.yaml,.yml,.toml,.csv,.xml,.pdf" multiple>
+                    <span class="file-upload-name" id="file-name"></span>
+                    <span class="upload-separator">|</span>
+                    <label class="file-upload-btn upload-zip-btn" for="zip-input">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                        Upload codebase (.zip)
+                    </label>
+                    <input type="file" id="zip-input" style="display: none" accept=".zip">
+                </div>
+                <!-- GitHub repo connection -->
+                {% if github_enabled %}
+                <div class="github-repo-area" id="github-repo-area">
+                    {% if github_repo %}
+                    <div class="github-connected" id="github-connected">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                        <span class="github-repo-name">{{ github_repo.owner | e }}/{{ github_repo.repo_name | e }}</span>
+                        <span class="dim">({{ github_file_count }} files)</span>
+                        <button type="button" class="github-action-btn" onclick="refreshGitHub()" title="Refresh tree">&#8635;</button>
+                        <button type="button" class="github-action-btn github-disconnect-btn" onclick="disconnectGitHub()" title="Disconnect">&times;</button>
+                    </div>
+                    {% else %}
+                    <div class="github-connect" id="github-connect">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                        <input type="text" id="github-url-input" placeholder="https://github.com/owner/repo" class="github-url-input">
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="connectGitHub()">Connect</button>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+                <!-- Session attachments (collapsible) -->
+                <div class="attachments-area" id="attachments-area">
+                    {% if attachments %}
+                    <div class="attachments-list">
+                        <button class="attachments-toggle" onclick="toggleAttachments()" type="button">
+                            <span class="attachments-arrow" id="att-arrow">&#9654;</span>
+                            <span id="att-count-label">{{ attachments|length }} file{{ 's' if attachments|length != 1 else '' }} attached</span>
+                        </button>
+                        <div class="attachments-items" id="attachments-items">
+                            {% for att in attachments %}
+                            <div class="attachment-item" id="att-{{ att.id }}">
+                                <span class="attachment-name">{{ att.filename }}</span>
+                                <span class="attachment-size dim">{{ "%.1f KB"|format(att.size_bytes / 1024) if att.size_bytes else "0 B" }}</span>
+                                <button class="attachment-remove" onclick="removeAttachment('{{ att.id }}')" title="Remove">&times;</button>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Changes panel (right side when undecided changes exist) -->
+    <div class="changes-panel" id="changes-panel">
+        {% if synthesis and synthesis.proposed_changes %}
+        <div class="changes-section">
+            <h3>Proposed Changes</h3>
+            <form id="decide-form" data-action="/api/decide/{{ session.id }}">
+            {% for c in synthesis.proposed_changes|sort(attribute='confidence') %}
+                {% set d = decided.get(c.id) %}
+                <div class="change-item {% if d %}{{ 'decided-accept' if d.accepted else 'decided-reject' }}{% endif %}" data-change-id="{{ c.id }}">
+                    <div class="change-info">
+                        <div class="change-badges">
+                            <span class="change-category">{{ c.category or 'other' }}</span>
+                            <span class="badge badge-{{ c.confidence or 'single' }}">{{ c.confidence or 'single' }}</span>
+                        </div>
+                        <p class="change-desc">{{ c.description }}</p>
+                        {% if c.rationale %}<p class="change-rationale">{{ c.rationale }}</p>{% endif %}
+                        <div class="change-source">
+                            {% for r in c.source_reviewers or [] %}<span class="model-chip model-chip-{{ r|lower }}">{{ r }}</span> {% endfor %}
+                        </div>
+                        {% if d and not d.accepted and d.reason %}
+                        <p class="dim" style="margin-top: 0.25rem; font-size: 0.85rem;">Rejected: {{ d.reason }}</p>
+                        {% endif %}
+                    </div>
+                    {% if not d %}
+                    <div class="change-actions">
+                        <button type="button" class="btn btn-accept" onclick="setDecision(this, '{{ c.id }}', true)">Accept</button>
+                        <button type="button" class="btn btn-reject" onclick="setDecision(this, '{{ c.id }}', false)">Reject</button>
+                    </div>
+                    {% else %}
+                    <div class="change-actions">
+                        <span class="badge {{ 'badge-accepted' if d.accepted else 'badge-rejected' }}">{{ 'Accepted' if d.accepted else 'Rejected' }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+            {% endfor %}
+
+            {% if has_undecided %}
+            <button type="button" class="btn btn-submit-decisions" onclick="submitDecisions()">Submit Decisions</button>
+            {% else %}
+            <div class="dim" style="text-align: center; padding: var(--space-2);">All changes decided. Continue chatting or convene another round.</div>
+            {% endif %}
+            </form>
+            <div id="decide-result"></div>
+        </div>
+        {% endif %}
+    </div>
+
+    </div><!-- /.session-body -->
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const SESSION_ID = "{{ session.id }}";
+const LEAD_NAME = "{{ models[session.lead_model].name }}";
+const LEAD_COLOR = "{{ models[session.lead_model].color }}";
+
+function scrollChat() {
+    const el = document.getElementById('chat-messages');
+    if (el) setTimeout(() => { el.scrollTop = el.scrollHeight; }, 50);
+}
+
+// ─── File upload / drag-and-drop (multi-file) ───────────
+let attachedFiles = [];
+
+document.getElementById('file-input')?.addEventListener('change', function(e) {
+    for (const file of e.target.files) addFile(file);
+});
+
+// Drag and drop on textarea
+const textarea = document.getElementById('chat-textarea');
+if (textarea) {
+    textarea.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        this.closest('.chat-input-inner').classList.add('file-drop-active');
+    });
+    textarea.addEventListener('dragleave', function(e) {
+        this.closest('.chat-input-inner').classList.remove('file-drop-active');
+    });
+    textarea.addEventListener('drop', function(e) {
+        e.preventDefault();
+        this.closest('.chat-input-inner').classList.remove('file-drop-active');
+        for (const file of e.dataTransfer.files) addFile(file);
+    });
+}
+
+function addFile(file) {
+    if (attachedFiles.some(f => f.name === file.name && f.size === file.size)) return;
+    attachedFiles.push(file);
+    renderFileList();
+}
+
+function removeFile(index) {
+    attachedFiles.splice(index, 1);
+    renderFileList();
+    if (attachedFiles.length === 0) document.getElementById('file-input').value = '';
+}
+
+function removeAllFiles() {
+    attachedFiles = [];
+    renderFileList();
+    document.getElementById('file-input').value = '';
+}
+
+function renderFileList() {
+    const nameEl = document.getElementById('file-name');
+    if (!nameEl) return;
+    if (attachedFiles.length === 0) { nameEl.innerHTML = ''; return; }
+    nameEl.innerHTML = attachedFiles.map((f, i) =>
+        `<span class="file-tag">📎 ${escapeHtml(f.name)} <span class="remove-file" onclick="removeFile(${i})">&times;</span></span>`
+    ).join(' ');
+}
+
+// ─── Zip upload (session attachments) ────────────────────
+
+document.getElementById('zip-input')?.addEventListener('change', function(e) {
+    if (e.target.files.length > 0) uploadZip(e.target.files[0]);
+});
+
+async function uploadZip(file) {
+    const area = document.getElementById('attachments-area');
+    area.innerHTML = '<div class="attachments-uploading"><span class="spinner"></span> Extracting files from ' + escapeHtml(file.name) + '...</div>';
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+        const resp = await fetch(`/api/upload/${SESSION_ID}`, { method: 'POST', body: formData });
+        if (!resp.ok) {
+            const text = await resp.text();
+            throw new Error(text || `Upload failed (${resp.status})`);
+        }
+        area.innerHTML = await resp.text();
+    } catch (err) {
+        area.innerHTML = '<div class="attachment-error">Upload failed: ' + escapeHtml(err.message) + '</div>';
+    }
+
+    // Reset input so the same file can be re-uploaded
+    document.getElementById('zip-input').value = '';
+}
+
+async function removeAttachment(id) {
+    try {
+        await fetch(`/api/attachment/${id}`, { method: 'DELETE' });
+        const el = document.getElementById('att-' + id);
+        if (el) {
+            el.style.opacity = '0';
+            setTimeout(() => {
+                el.remove();
+                const list = document.querySelector('.attachments-list');
+                if (list) {
+                    const items = list.querySelectorAll('.attachment-item');
+                    if (items.length === 0) {
+                        list.remove();
+                    } else {
+                        const label = document.getElementById('att-count-label');
+                        if (label) label.textContent = items.length + ' file' + (items.length !== 1 ? 's' : '') + ' attached';
+                    }
+                }
+            }, 200);
+        }
+    } catch (err) {
+        console.error('Failed to remove attachment:', err);
+    }
+}
+
+function toggleAttachments() {
+    const items = document.getElementById('attachments-items');
+    const arrow = document.getElementById('att-arrow');
+    if (!items) return;
+    const open = items.classList.toggle('expanded');
+    if (arrow) arrow.classList.toggle('open', open);
+}
+
+// ─── Chat ────────────────────────────────────────────────
+
+async function sendChat(e) {
+    e.preventDefault();
+    const textarea = document.getElementById('chat-textarea');
+    let message = textarea.value.trim();
+
+    // If files are attached, read all and prepend to message
+    if (attachedFiles.length > 0) {
+        try {
+            let filesHeader = '';
+            for (const file of attachedFiles) {
+                const content = await file.text();
+                filesHeader += `[Attached file: ${file.name}]\n\n${content}\n\n---\n\n`;
+            }
+            const defaultMsg = attachedFiles.length === 1
+                ? `Please review the attached file: ${attachedFiles[0].name}`
+                : `Please review these ${attachedFiles.length} attached files.`;
+            message = filesHeader + (message || defaultMsg);
+            removeAllFiles();
+        } catch (err) {
+            console.error('Failed to read files:', err);
+        }
+    }
+
+    if (!message) return false;
+
+    const btn = document.getElementById('send-btn');
+    const chatMessages = document.getElementById('chat-messages');
+
+    // Remove empty state
+    const empty = document.getElementById('empty-chat');
+    if (empty) empty.remove();
+
+    // Show user message immediately
+    chatMessages.insertAdjacentHTML('beforeend',
+        `<div class="message user-message">
+            <div class="message-sender">You</div>
+            <div class="message-content">${escapeHtml(message)}</div>
+        </div>`
+    );
+    textarea.value = '';
+    scrollChat();
+
+    // Show thinking indicator
+    const thinkingId = 'thinking-' + Date.now();
+    chatMessages.insertAdjacentHTML('beforeend',
+        `<div class="message assistant-message thinking-msg" id="${thinkingId}">
+            <div class="message-sender" style="color: ${LEAD_COLOR}">${LEAD_NAME}</div>
+            <div class="message-content"><span class="thinking-dots">Thinking</span></div>
+        </div>`
+    );
+    scrollChat();
+
+    btn.disabled = true;
+    btn.textContent = '...';
+
+    try {
+        const formData = new FormData();
+        formData.append('message', message);
+        const resp = await fetch(`/api/chat/${SESSION_ID}`, { method: 'POST', body: formData });
+        const html = await resp.text();
+
+        // Remove thinking indicator
+        document.getElementById(thinkingId)?.remove();
+
+        const temp = document.createElement('div');
+        temp.innerHTML = html;
+        const msgs = temp.querySelectorAll('.message');
+        for (let i = 1; i < msgs.length; i++) {
+            chatMessages.appendChild(msgs[i]);
+        }
+        if (msgs.length === 1 && msgs[0].classList.contains('error-message')) {
+            chatMessages.appendChild(msgs[0]);
+        }
+
+        chatMessages.querySelectorAll('.markdown-body').forEach(renderMarkdown);
+        scrollChat();
+    } catch (err) {
+        document.getElementById(thinkingId)?.remove();
+        chatMessages.insertAdjacentHTML('beforeend',
+            `<div class="message error-message">
+                <div class="message-sender" style="color: #EF4444">Error</div>
+                <div class="message-content">${escapeHtml(err.message)}</div>
+            </div>`
+        );
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Send';
+    }
+
+    return false;
+}
+
+// ─── Convene ─────────────────────────────────────────────
+
+let conveneInProgress = false;
+
+async function conveneCouncil() {
+    if (conveneInProgress) return;
+    conveneInProgress = true;
+
+    const btn = document.getElementById('convene-btn');
+    const chatMessages = document.getElementById('chat-messages');
+
+    btn.disabled = true;
+    btn.classList.add('btn-disabled');
+    btn.innerHTML = '<span class="spinner"></span> Council in session...';
+
+    // Show loading indicator in chat area
+    const loadingId = 'convene-loading-' + Date.now();
+    chatMessages.insertAdjacentHTML('beforeend', `
+        <div class="convene-progress" id="${loadingId}">
+            <div class="spinner-large"></div>
+            <h3>Council in session...</h3>
+            <p class="dim" id="convene-status">Sending briefing to Council members...</p>
+            <p class="dim">This takes 1-3 minutes. Please wait.</p>
+            <p class="convene-elapsed" id="convene-elapsed">0s</p>
+        </div>
+    `);
+    scrollChat();
+
+    const statusEl = document.getElementById('convene-status');
+    const elapsedEl = document.getElementById('convene-elapsed');
+    const startTime = Date.now();
+    const hasGitHub = !!document.getElementById('github-connected');
+    const steps = hasGitHub ? [
+        'Selecting relevant files from repository...',
+        'Fetching codebase context from GitHub...',
+        'Generating review briefing...',
+        'Dispatching to Council members...',
+        'Waiting for reviews (this is the slow part)...',
+        'Synthesizing feedback...',
+    ] : [
+        'Sending briefing to Council members...',
+        'Generating review briefing...',
+        'Dispatching to Council members...',
+        'Waiting for reviews (this is the slow part)...',
+        'Synthesizing feedback...',
+    ];
+    let stepIdx = 0;
+    const stepInterval = setInterval(() => {
+        stepIdx = Math.min(stepIdx + 1, steps.length - 1);
+        if (statusEl) statusEl.textContent = steps[stepIdx];
+    }, 15000);
+    const timerInterval = setInterval(() => {
+        const secs = Math.floor((Date.now() - startTime) / 1000);
+        if (elapsedEl) elapsedEl.textContent = secs < 60 ? `${secs}s` : `${Math.floor(secs/60)}m ${secs%60}s`;
+    }, 1000);
+
+    try {
+        const resp = await fetch(`/api/convene/${SESSION_ID}`, { method: 'POST' });
+        clearInterval(stepInterval);
+        clearInterval(timerInterval);
+
+        if (!resp.ok) {
+            const text = await resp.text();
+            throw new Error(`Server error ${resp.status}: ${text.substring(0, 200)}`);
+        }
+
+        const html = await resp.text();
+
+        // Remove loading indicator
+        document.getElementById(loadingId)?.remove();
+
+        // Parse the response — review content and changes are siblings inside council-results
+        const temp = document.createElement('div');
+        temp.innerHTML = html;
+
+        // Extract review content and append to chat
+        const reviewContent = temp.querySelector('.council-review-content');
+        if (reviewContent) {
+            chatMessages.appendChild(reviewContent);
+            reviewContent.querySelectorAll('.markdown-body').forEach(renderMarkdown);
+            scrollChat();
+        }
+
+        // Extract changes and put in right panel
+        const changesContent = temp.querySelector('.changes-section');
+        const changesPanel = document.getElementById('changes-panel');
+        changesPanel.innerHTML = '';
+        if (changesContent) {
+            changesPanel.appendChild(changesContent);
+            document.getElementById('session-body').classList.add('has-council');
+        }
+    } catch (err) {
+        clearInterval(stepInterval);
+        clearInterval(timerInterval);
+        document.getElementById(loadingId)?.remove();
+        chatMessages.insertAdjacentHTML('beforeend', `
+            <div class="message error-message">
+                <div class="message-sender" style="color: #EF4444">Council Review Failed</div>
+                <div class="message-content">${escapeHtml(err.message)}</div>
+            </div>
+        `);
+    } finally {
+        conveneInProgress = false;
+        btn.disabled = false;
+        btn.classList.remove('btn-disabled');
+        btn.innerHTML = '⚖ Convene the Council';
+    }
+}
+
+// ─── Helpers ─────────────────────────────────────────────
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// ─── GitHub auto-context ─────────────────────────────────
+
+async function connectGitHub() {
+    const input = document.getElementById('github-url-input');
+    const url = input?.value.trim();
+    if (!url) return;
+
+    const area = document.getElementById('github-repo-area');
+    area.innerHTML = '<div class="github-loading"><span class="spinner"></span> Connecting to repository...</div>';
+
+    try {
+        const resp = await fetch(`/api/github/${SESSION_ID}`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({repo_url: url}),
+        });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.error || 'Connection failed');
+
+        area.innerHTML = `
+            <div class="github-connected" id="github-connected">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                <span class="github-repo-name">${escapeHtml(data.owner)}/${escapeHtml(data.repo_name)}</span>
+                <span class="dim">(${data.file_count} files)</span>
+                <button type="button" class="github-action-btn" onclick="refreshGitHub()" title="Refresh tree">&#8635;</button>
+                <button type="button" class="github-action-btn github-disconnect-btn" onclick="disconnectGitHub()" title="Disconnect">&times;</button>
+            </div>`;
+    } catch (err) {
+        area.innerHTML = `
+            <div class="github-connect" id="github-connect">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                <input type="text" id="github-url-input" placeholder="https://github.com/owner/repo" class="github-url-input" value="${escapeHtml(url)}">
+                <button type="button" class="btn btn-secondary btn-sm" onclick="connectGitHub()">Connect</button>
+                <div class="github-error">${escapeHtml(err.message)}</div>
+            </div>`;
+    }
+}
+
+async function refreshGitHub() {
+    const conn = document.getElementById('github-connected');
+    if (!conn) return;
+    const nameEl = conn.querySelector('.github-repo-name');
+    const origText = nameEl?.textContent || '';
+    if (nameEl) nameEl.textContent = 'Refreshing...';
+
+    try {
+        const resp = await fetch(`/api/github/${SESSION_ID}/refresh`, {method: 'POST'});
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.error || 'Refresh failed');
+        if (nameEl) nameEl.textContent = `${data.owner}/${data.repo_name}`;
+        const dimEl = conn.querySelector('.dim');
+        if (dimEl) dimEl.textContent = `(${data.file_count} files)`;
+    } catch (err) {
+        if (nameEl) nameEl.textContent = origText;
+        alert('Refresh failed: ' + err.message);
+    }
+}
+
+async function disconnectGitHub() {
+    try {
+        await fetch(`/api/github/${SESSION_ID}`, {method: 'DELETE'});
+        const area = document.getElementById('github-repo-area');
+        area.innerHTML = `
+            <div class="github-connect" id="github-connect">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                <input type="text" id="github-url-input" placeholder="https://github.com/owner/repo" class="github-url-input">
+                <button type="button" class="btn btn-secondary btn-sm" onclick="connectGitHub()">Connect</button>
+            </div>`;
+    } catch (err) {
+        alert('Disconnect failed: ' + err.message);
+    }
+}
+
+// Init
+scrollChat();
+document.querySelectorAll('.markdown-body').forEach(renderMarkdown);
+</script>
+{% endblock %}

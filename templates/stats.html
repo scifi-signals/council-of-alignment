@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Reviewer Stats — Council of Alignment{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Reviewer Performance</h1>
+</div>
+
+{% if stats %}
+<div class="stats-grid">
+    {% for model_key, s in stats.items() %}
+    <div class="stat-card" style="border-top-color: {{ models[model_key].color if model_key in models else '#666' }}">
+        <h3 style="color: {{ models[model_key].color if model_key in models else '#ccc' }}">
+            {{ s.display_name }}
+        </h3>
+        <div class="stat-numbers">
+            <div class="stat-item">
+                <span class="stat-value">{{ s.total_suggestions }}</span>
+                <span class="stat-label">Suggestions</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-value stat-accepted">{{ s.accepted }}</span>
+                <span class="stat-label">Accepted</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-value stat-rejected">{{ s.rejected }}</span>
+                <span class="stat-label">Rejected</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-value stat-rate">{{ s.acceptance_rate }}%</span>
+                <span class="stat-label">Acceptance Rate</span>
+            </div>
+        </div>
+        {% if s.categories %}
+        <div class="stat-categories">
+            <h4>Categories</h4>
+            <div class="category-tags">
+                {% for cat, count in s.categories.items() %}
+                <span class="badge badge-category">{{ cat }}: {{ count }}</span>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="empty-state">
+    <p>No reviewer stats yet.</p>
+    <p class="dim">Run some Council reviews to see model performance data here.</p>
+</div>
+{% endif %}
+{% endblock %}

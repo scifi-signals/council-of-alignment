@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Council of Alignment{% endblock %}</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    {% block head %}{% endblock %}
+</head>
+<body>
+    <nav class="topnav">
+        <a href="/" class="nav-brand">
+            <span class="nav-orbs"><span class="orb" style="background:var(--claude)"></span><span class="orb" style="background:var(--chatgpt)"></span><span class="orb" style="background:var(--gemini)"></span><span class="orb" style="background:var(--grok)"></span></span> Council of Alignment
+        </a>
+        <div class="nav-links">
+            <a href="/">Sessions</a>
+            <a href="/new">New Session</a>
+            <a href="/stats">Stats</a>
+        </div>
+    </nav>
+    <main class="{% block container_class %}container{% endblock %}">
+        {% block content %}{% endblock %}
+    </main>
+    <script src="/static/app.js"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

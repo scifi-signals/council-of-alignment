@@ -1,0 +1,409 @@
+"""Lead AI conversation manager — maintains chat history, extracts design state."""
+
+import json
+import logging
+import uuid
+from database import get_db
+from dispatcher import ModelDispatcher
+from config import MODELS
+from attachment_context import build_attachment_context
+from github_context import GitHubContextProvider
+
+logger = logging.getLogger(__name__)
+
+LEAD_SYSTEM_PROMPT = """You are {model_name}, Lead AI for "{title}".
+
+You have two modes. Read the full prompt, then match your behavior to the situation.
+
+## Mode 1: Design Conversation
+When the user is describing an idea, exploring options, or building something new — be a genuine
+collaborator. Ask questions that sharpen the idea. Identify trade-offs worth discussing. Help them
+think through what they haven't considered yet. Be direct and opinionated — if you think an approach
+is wrong, say so and say why.
+
+## Mode 2: Code & Design Analysis
+When Reference Materials are attached below, or the user asks you to evaluate existing code or a
+concrete design — switch to analytical mode.
+
+DO NOT SUMMARIZE. Do not describe what each component does. Do not give a tour of the architecture.
+The user wrote the code — they know what it's supposed to do. Your job is to find what's actually
+broken, missing, or disconnected.
+
+### Method: Trace the chains
+Pick the most important data flows in the system and trace each one end-to-end through the actual
+code. For each chain, report one of:
+- COMPLETE: data flows from origin to final consumer and produces the intended effect
+- BROKEN: the chain breaks at a specific point (say exactly where and why)
+- DEAD END: data is written/collected but nothing reads it or acts on it
+
+For example: if the code says "lessons are extracted from trades," find where lessons are created,
+then find what reads those lessons, then find whether that reader changes any downstream behavior.
+If the chain breaks — lessons are stored but nothing retrieves them for decisions — that's a finding.
+
+### What to report
+- Broken chains: where data stops flowing and what downstream behavior never happens as a result
+- Dead writes: data collected or computed but never consumed
+- Silent failures: error handlers that swallow exceptions without recovery or alerting
+- Stale state: caches, configs, or weights that are set once but never updated (or vice versa)
+- Logic gaps: conditions or edge cases where the code does nothing (implicit else branches)
+- Contradictions: where two parts of the system assume different things about shared state
+
+### VERIFY BEFORE YOU REPORT
+For every issue you claim, show your work. Name the file and function you traced through.
+If you claim a data flow is broken, state: "I looked for a consumer of X in [file:function]
+and found nothing" or "I found the consumer at [file:function] — chain is complete."
+If you didn't read the file where the consumer might live, say so explicitly: "I cannot verify
+this because [file] was not included" — rather than assuming it's broken.
+
+Do NOT report a chain as broken if you simply haven't seen the file that completes it.
+That's a gap in your visibility, not a gap in the code.
+
+### What NOT to report
+Before you say anything, ask: "Could I say this about any project without reading the code?" If
+yes, delete it. "Add unit tests," "improve error handling," "add caching," "add retry logic" — if
+you can't point to a specific function, a specific failure mode, and a specific consequence, don't
+say it. Generic improvement suggestions are worthless.
+
+Do NOT diff a spec or roadmap against the implementation and report unbuilt features as bugs.
+If the spec describes 10 features and the code implements 4, the other 6 are a backlog, not
+broken data flows. Only report issues in code that actually exists and runs.
+
+### Finding nothing is a valid outcome
+If the code is sound, say so. A short response with zero findings is more valuable than a long
+response with invented problems. Do not pad your analysis to match some expected length. Do not
+reframe intentional design choices as bugs. Do not hedge with "this could potentially..." — either
+trace the data flow and find the break, or confirm the chain is complete.
+
+### Format
+Don't bury findings in long paragraphs. Lead with the finding, then show the evidence. The user
+should be able to scan your response and immediately see what's wrong and where.
+
+## Always
+- Write in plain language. For any technical term or pattern, briefly explain what it means and why
+  it matters. Write as if the reader is smart but not necessarily a developer.
+- When the user is ready, they can convene the Council — a panel of other AI models who will
+  independently review. That review is adversarial by design. Your role is collaborative, but not
+  soft. Prepare the user for a rigorous review by being honest about weaknesses before the Council
+  finds them."""
+
+EXTRACT_DESIGN_PROMPT = """Based on our conversation so far, extract and summarize the current design state.
+
+Format it as a clean, structured document that another AI reviewer could understand cold. Include:
+- Project overview and goals
+- Architecture / key decisions
+- Components and their responsibilities
+- Any open questions or known trade-offs
+
+Be comprehensive but concise. This will be sent to a panel of AI reviewers for critical review."""
+
+INJECT_SYNTHESIS_PROMPT = """The Council of Alignment has reviewed the design. Here are the full results:
+
+## Accepted Changes
+{accepted_changes}
+
+## Rejected Changes
+{rejected_changes}
+
+## Full Council Synthesis
+
+### Points of Accord (all reviewers agreed)
+{consensus_text}
+
+### Majority Positions (with dissent)
+{majority_text}
+
+### Unique Insights (caught by one reviewer)
+{unique_text}
+
+### Disagreements
+{disagreements_text}
+
+### Overall Verdict
+{verdict_text}
+
+Please update the design to incorporate all accepted changes. Then continue the conversation with the user, summarizing what changed and asking if they want to refine anything further or convene another round of review."""
+
+
+def _extract_mentioned_files(message: str, attachments: list[dict]) -> list[str]:
+    """Find attachment filenames referenced in a message.
+
+    Matches on basename (e.g., 'HOLD_PROBLEM_BRIEFING.md') or stem without extension
+    (e.g., 'hold_problem_briefing'). Case-insensitive.
+    """
+    msg_lower = message.lower()
+    mentioned = []
+    for att in attachments:
+        fname = att["filename"]
+        # Get the basename (last path component)
+        basename = fname.replace("\\", "/").split("/")[-1]
+        stem = basename.rsplit(".", 1)[0] if "." in basename else basename
+        # Check if the basename or stem appears in the message
+        if basename.lower() in msg_lower or stem.lower().replace("_", " ") in msg_lower.replace("_", " "):
+            mentioned.append(fname)
+    return mentioned
+
+
+class ChatEngine:
+    def __init__(self, dispatcher: ModelDispatcher, github_ctx: GitHubContextProvider = None):
+        self.dispatcher = dispatcher
+        self.github_ctx = github_ctx or GitHubContextProvider()
+
+    async def send_message(self, session_id: str, user_message: str) -> str:
+        """Send user message to Lead AI, get response. Maintains full history in DB."""
+        db = await get_db()
+        try:
+            # Get session info
+            cursor = await db.execute("SELECT lead_model, title FROM sessions WHERE id = ?", (session_id,))
+            row = await cursor.fetchone()
+            if not row:
+                raise ValueError(f"Session {session_id} not found")
+            lead_model = row["lead_model"]
+            title = row["title"]
+
+            # Save user message
+            msg_id = str(uuid.uuid4())
+            await db.execute(
+                "INSERT INTO messages (id, session_id, role, content) VALUES (?, ?, ?, ?)",
+                (msg_id, session_id, "user", user_message),
+            )
+            await db.commit()
+
+            # Build message history
+            cursor = await db.execute(
+                "SELECT role, content FROM messages WHERE session_id = ? ORDER BY created_at",
+                (session_id,),
+            )
+            rows = await cursor.fetchall()
+            messages = [{"role": r["role"], "content": r["content"]} for r in rows]
+
+            # Build system prompt with attachments
+            system = LEAD_SYSTEM_PROMPT.format(
+                model_name=MODELS[lead_model]["name"],
+                title=title,
+            )
+
+            # Include session attachments as reference materials
+            att_cursor = await db.execute(
+                "SELECT filename, content, size_bytes FROM attachments WHERE session_id = ? ORDER BY filename",
+                (session_id,),
+            )
+            att_rows = [dict(r) for r in await att_cursor.fetchall()]
+
+            # Detect filenames mentioned in recent messages to boost their priority
+            priority_files = _extract_mentioned_files(user_message, att_rows)
+            system += build_attachment_context(att_rows, heading="Reference Materials",
+                                              priority_files=priority_files)
+
+            # Include GitHub repo files if connected
+            github_context = await self._get_github_context(
+                session_id, lead_model, messages, att_rows, db
+            )
+            if github_context:
+                system += github_context
+
+            # Call Lead AI
+            result = await self.dispatcher.chat(lead_model, messages, system=system)
+            response = result["content"]
+
+            # Save assistant response
+            resp_id = str(uuid.uuid4())
+            await db.execute(
+                "INSERT INTO messages (id, session_id, role, content) VALUES (?, ?, ?, ?)",
+                (resp_id, session_id, "assistant", response),
+            )
+            await db.commit()
+
+            return response
+        finally:
+            await db.close()
+
+    async def _get_github_context(
+        self, session_id: str, lead_model: str,
+        messages: list[dict], att_rows: list[dict], db
+    ) -> str:
+        """Fetch GitHub files for the Lead AI's context. Cache on first use."""
+        try:
+            cursor = await db.execute(
+                "SELECT owner, repo_name, default_branch, tree_json, chat_files_json "
+                "FROM github_repos WHERE session_id = ?",
+                (session_id,),
+            )
+            repo = await cursor.fetchone()
+            if not repo or not repo["tree_json"]:
+                return ""
+
+            # Cache hit — deserialize and use
+            if repo["chat_files_json"]:
+                file_contents = json.loads(repo["chat_files_json"])
+            else:
+                # Cache miss — select and fetch files
+                tree = json.loads(repo["tree_json"])
+                conversation = "\n".join(
+                    f"{m['role']}: {m['content']}" for m in messages
+                )
+                selected_paths = await self.github_ctx.select_relevant_files(
+                    self.dispatcher, lead_model, conversation, tree, max_files=30
+                )
+                if not selected_paths:
+                    return ""
+
+                file_contents = await self.github_ctx.fetch_file_contents(
+                    repo["owner"], repo["repo_name"],
+                    selected_paths, repo["default_branch"],
+                )
+                if not file_contents:
+                    return ""
+
+                # Cache the result
+                await db.execute(
+                    "UPDATE github_repos SET chat_files_json = ? WHERE session_id = ?",
+                    (json.dumps(file_contents), session_id),
+                )
+                await db.commit()
+
+            # Deduplicate against manual uploads
+            manual_names = {a["filename"].split("/")[-1].lower() for a in att_rows}
+            file_contents = [
+                f for f in file_contents
+                if f["filename"].split("/")[-1].lower() not in manual_names
+            ]
+
+            if not file_contents:
+                return ""
+
+            return build_attachment_context(
+                file_contents,
+                heading="GitHub Codebase Context",
+                auto_selected=True,
+            )
+        except Exception as e:
+            logger.warning("GitHub chat context failed: %s", e)
+            return ""
+
+    async def get_design_state(self, session_id: str) -> str:
+        """Ask the Lead AI to extract the current design from conversation."""
+        db = await get_db()
+        try:
+            cursor = await db.execute("SELECT lead_model, title FROM sessions WHERE id = ?", (session_id,))
+            row = await cursor.fetchone()
+            lead_model = row["lead_model"]
+            title = row["title"]
+
+            # Get full conversation
+            cursor = await db.execute(
+                "SELECT role, content FROM messages WHERE session_id = ? ORDER BY created_at",
+                (session_id,),
+            )
+            rows = await cursor.fetchall()
+            messages = [{"role": r["role"], "content": r["content"]} for r in rows]
+
+            # Add extraction request
+            messages.append({"role": "user", "content": EXTRACT_DESIGN_PROMPT})
+
+            system = LEAD_SYSTEM_PROMPT.format(
+                model_name=MODELS[lead_model]["name"],
+                title=title,
+            )
+            result = await self.dispatcher.chat(lead_model, messages, system=system)
+            return result["content"]
+        finally:
+            await db.close()
+
+    async def inject_synthesis(self, session_id: str, synthesis: dict, accepted_changes: list, rejected_changes: list) -> str:
+        """Feed full synthesis results back to Lead AI and continue conversation."""
+        accepted_text = "\n".join(
+            f"- [{c.get('category', 'general')}] {c['description']} (from {', '.join(c.get('source_reviewers', []))})"
+            for c in accepted_changes
+        ) or "None"
+
+        rejected_text = "\n".join(
+            f"- [{c.get('category', 'general')}] {c['description']} — Reason: {c.get('rejection_reason', 'N/A')}"
+            for c in rejected_changes
+        ) or "None"
+
+        # Build full synthesis context — no filtering
+        consensus_text = "\n".join(
+            f"- {c.get('point', '')} (from {', '.join(c.get('reviewers', []))})"
+            for c in synthesis.get("consensus", [])
+        ) or "None"
+
+        majority_text = "\n".join(
+            f"- {m.get('point', '')} (for: {', '.join(m.get('for', []))}; against: {', '.join(m.get('against', []))} — {m.get('against_reasoning', 'no reason given')})"
+            for m in synthesis.get("majority", [])
+        ) or "None"
+
+        unique_text = "\n".join(
+            f"- [{u.get('significance', '?')}] {u.get('insight', '')} (from {u.get('reviewer', '?')})"
+            for u in synthesis.get("unique_insights", [])
+        ) or "None"
+
+        disagreements_text = "\n".join(
+            f"- {d.get('topic', '')}: " + "; ".join(f"{k}: {v}" for k, v in d.get("positions", {}).items())
+            for d in synthesis.get("disagreements", [])
+        ) or "None"
+
+        verdict = synthesis.get("overall_verdict", {})
+        verdict_text = verdict.get("summary", "No summary available.")
+        if verdict.get("ready_to_build"):
+            verdict_text += " (Council says: ready to build)"
+        if verdict.get("another_round_recommended"):
+            verdict_text += " (Council recommends another round)"
+
+        inject_msg = INJECT_SYNTHESIS_PROMPT.format(
+            accepted_changes=accepted_text,
+            rejected_changes=rejected_text,
+            consensus_text=consensus_text,
+            majority_text=majority_text,
+            unique_text=unique_text,
+            disagreements_text=disagreements_text,
+            verdict_text=verdict_text,
+        )
+
+        # Save as a system-injected message
+        db = await get_db()
+        try:
+            msg_id = str(uuid.uuid4())
+            await db.execute(
+                "INSERT INTO messages (id, session_id, role, content) VALUES (?, ?, ?, ?)",
+                (msg_id, session_id, "user", inject_msg),
+            )
+            await db.commit()
+        finally:
+            await db.close()
+
+        # Get Lead's response to the injected synthesis
+        return await self._get_lead_response(session_id)
+
+    async def _get_lead_response(self, session_id: str) -> str:
+        """Get Lead AI response to the current message history (no new user message)."""
+        db = await get_db()
+        try:
+            cursor = await db.execute("SELECT lead_model, title FROM sessions WHERE id = ?", (session_id,))
+            row = await cursor.fetchone()
+            lead_model = row["lead_model"]
+            title = row["title"]
+
+            cursor = await db.execute(
+                "SELECT role, content FROM messages WHERE session_id = ? ORDER BY created_at",
+                (session_id,),
+            )
+            rows = await cursor.fetchall()
+            messages = [{"role": r["role"], "content": r["content"]} for r in rows]
+
+            system = LEAD_SYSTEM_PROMPT.format(
+                model_name=MODELS[lead_model]["name"],
+                title=title,
+            )
+            result = await self.dispatcher.chat(lead_model, messages, system=system)
+            response = result["content"]
+
+            # Save response
+            resp_id = str(uuid.uuid4())
+            await db.execute(
+                "INSERT INTO messages (id, session_id, role, content) VALUES (?, ?, ?, ?)",
+                (resp_id, session_id, "assistant", response),
+            )
+            await db.commit()
+            return response
+        finally:
+            await db.close()

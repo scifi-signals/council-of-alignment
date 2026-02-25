@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}New Session — Council of Alignment{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>New Council Session</h1>
+</div>
+
+<form method="POST" action="/new" class="new-session-form">
+    <div class="form-group">
+        <label for="title">Project Title</label>
+        <input type="text" id="title" name="title" placeholder="e.g. MonopolyTrader Design" required autofocus>
+    </div>
+
+    <div class="form-group">
+        <label>Pick Your Lead AI</label>
+        <div class="model-picker">
+            {% for key, model in models.items() %}
+            <label class="model-option" style="--model-color: {{ model.color }}">
+                <input type="radio" name="lead" value="{{ key }}" {% if key == 'claude' %}checked{% endif %}>
+                <div class="model-option-card">
+                    <div class="model-option-name">{{ model.name }}</div>
+                    <div class="model-option-role">Lead AI</div>
+                </div>
+            </label>
+            {% endfor %}
+        </div>
+        <p class="form-hint">The other 3 models will form the Council and review the design.</p>
+    </div>
+
+    <button type="submit" class="btn btn-primary btn-lg">Start Session</button>
+</form>
+{% endblock %}

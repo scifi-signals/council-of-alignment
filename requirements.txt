@@ -1,0 +1,9 @@
+httpx
+python-dotenv
+aiosqlite
+anthropic
+openai
+fastapi
+uvicorn[standard]
+jinja2
+python-multipart

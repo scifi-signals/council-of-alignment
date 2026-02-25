@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Council of Alignment{% endblock %}
+
+{% block content %}
+{% if not sessions %}
+<div class="hero">
+    <h1>Council of Alignment</h1>
+    <p class="hero-sub">Design with one AI. Get critical review from three others.</p>
+    <a href="/new" class="btn btn-primary btn-lg">Start a Session</a>
+    <img src="/static/council-hero.png" alt="The Council" class="hero-image">
+</div>
+{% else %}
+<div class="page-header">
+    <div class="page-header-left">
+        <h1>Design Sessions</h1>
+    </div>
+    <a href="/new" class="btn btn-primary">+ New Session</a>
+</div>
+
+<div class="sessions-grid">
+    {% for s in sessions %}
+    <div class="session-card-wrapper" id="session-{{ s.id }}">
+        <a href="/session/{{ s.id }}" class="session-card">
+            <div class="session-card-header">
+                <h3>{{ s.title }}</h3>
+                <span class="badge badge-status">{{ s.status }}</span>
+            </div>
+            <div class="session-card-meta">
+                <span class="model-badge" style="background: {{ models[s.lead_model].color }}20; color: {{ models[s.lead_model].color }}; border: 1px solid {{ models[s.lead_model].color }}40">
+                    {{ models[s.lead_model].name }} (Lead)
+                </span>
+                <span class="session-date">{{ s.created_at }}</span>
+            </div>
+            <div class="session-card-id">{{ s.id }}</div>
+        </a>
+        <button class="btn btn-delete" onclick="deleteSession('{{ s.id }}', '{{ s.title | e }}')" title="Delete session">
+            &times;
+        </button>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function deleteSession(id, title) {
+    if (!confirm('Delete "' + title + '"? This removes all messages, reviews, and history.')) return;
+    const resp = await fetch('/api/session/' + id, { method: 'DELETE' });
+    if (resp.ok) {
+        const el = document.getElementById('session-' + id);
+        if (el) {
+            el.style.transition = 'opacity 0.3s';
+            el.style.opacity = '0';
+            setTimeout(() => {
+                el.remove();
+                if (!document.querySelector('.session-card-wrapper')) location.reload();
+            }, 300);
+        }
+    }
+}
+</script>
+{% endblock %}
