@@ -253,7 +253,10 @@ class SessionManager:
             await db.close()
 
     async def save_changelog_entry(self, session_id: str, round_number: int, change: dict, accepted: bool, rejection_reason: str = None) -> str:
-        entry_id = change.get("id", str(uuid.uuid4()))
+        # Prefix with round number to avoid ID collisions across rounds
+        # (synthesis generates generic IDs like change_001 each round)
+        raw_id = change.get("id", str(uuid.uuid4()))
+        entry_id = f"r{round_number}_{raw_id}"
         db = await get_db()
         try:
             await db.execute(
