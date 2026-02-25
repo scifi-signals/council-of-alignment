@@ -171,6 +171,13 @@ body { font-family: var(--font-body); background: var(--bg-page); color: var(--t
 .message-sender { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
 .message-content { font-size: 15px; line-height: 1.7; word-wrap: break-word; color: var(--text-primary); }
 
+/* Verification display */
+.initial-analysis { opacity: 0.5; border-left: 3px solid var(--text-muted); }
+.initial-analysis .message-content { max-height: 200px; overflow: hidden; position: relative; }
+.initial-analysis .message-content::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 60px; background: linear-gradient(transparent, var(--bg-secondary)); pointer-events: none; }
+.verification-prompt { align-self: center; max-width: 70%; text-align: center; background: transparent; border: 1px dashed var(--border-medium); font-size: 13px; }
+.verified-analysis { border-left: 3px solid #1FD08C; }
+
 /* Chat input */
 .chat-input-bar { position: sticky; bottom: 0; background: var(--bg-primary); padding: var(--space-2) var(--space-3); border-top: 1px solid var(--border-subtle); flex-shrink: 0; }
 .chat-input-wrapper { max-width: 960px; margin: 0 auto; display: flex; flex-direction: column; gap: var(--space-1); }

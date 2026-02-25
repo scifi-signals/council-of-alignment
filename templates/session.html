@@ -414,11 +414,12 @@ async function sendChat(e) {
         }
     }
 
-    // If no text but GitHub repo is connected, send a default analyze prompt
+    // If no text but code context exists (GitHub or attachments), send directive prompt
     if (!message) {
         const hasGitHubRepo = !!document.getElementById('github-connected');
-        if (hasGitHubRepo) {
-            message = 'Analyze the connected codebase.';
+        const hasAttachments = document.querySelectorAll('.attachment-item').length > 0;
+        if (hasGitHubRepo || hasAttachments) {
+            message = 'Trace every data flow in this codebase end-to-end. Report only broken chains.';
         } else {
             return false;
         }

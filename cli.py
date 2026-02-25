@@ -144,7 +144,8 @@ async def cmd_chat(args):
         print(f"\n{DIM}  Thinking...{RESET}", end="", flush=True)
 
         try:
-            response = await engine.send_message(session["id"], user_input)
+            result = await engine.send_message(session["id"], user_input)
+            response = result["response"] if isinstance(result, dict) else result
             print(f"\r{' '*20}\r", end="")  # Clear "Thinking..."
             print(f"\n{lead_color}{BOLD}{lead_name}:{RESET} {response}\n")
         except Exception as e:

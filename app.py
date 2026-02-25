@@ -378,13 +378,31 @@ async def api_chat(session_id: str, request: Request):
     """
 
     try:
-        response = await engine.send_message(session_id, message)
-        html = user_html + f"""
-        <div class="message assistant-message">
-            <div class="message-sender" style="color: {lead_color}">{lead_name}</div>
-            <div class="message-content markdown-body">{_escape(response)}</div>
-        </div>
-        """
+        result = await engine.send_message(session_id, message)
+
+        if result.get("verified"):
+            # Show initial analysis (collapsed) + verification challenge + verified result
+            html = user_html + f"""
+            <div class="message assistant-message initial-analysis">
+                <div class="message-sender" style="color: {lead_color}">{lead_name} <span class="dim">(initial analysis)</span></div>
+                <div class="message-content markdown-body">{_escape(result['initial_response'])}</div>
+            </div>
+            <div class="message user-message verification-prompt">
+                <div class="message-sender">Auto-Verification</div>
+                <div class="message-content dim">Verification step: Lead challenged to prove each claim against actual code.</div>
+            </div>
+            <div class="message assistant-message verified-analysis">
+                <div class="message-sender" style="color: {lead_color}">{lead_name} <span style="color: #1FD08C">&#10003; Verified</span></div>
+                <div class="message-content markdown-body">{_escape(result['response'])}</div>
+            </div>
+            """
+        else:
+            html = user_html + f"""
+            <div class="message assistant-message">
+                <div class="message-sender" style="color: {lead_color}">{lead_name}</div>
+                <div class="message-content markdown-body">{_escape(result['response'])}</div>
+            </div>
+            """
     except Exception as e:
         html = user_html + f"""
         <div class="message error-message">

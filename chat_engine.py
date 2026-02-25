@@ -114,6 +114,20 @@ should be able to scan your response and immediately see what's wrong and where.
   soft. Prepare the user for a rigorous review by being honest about weaknesses before the Council
   finds them."""
 
+VERIFICATION_PROMPT = """Now verify your analysis. Go through every claim you just made:
+
+1. For every file you referenced: confirm it appears in the loaded code above. If you named a file
+   that doesn't exist, retract it.
+2. For every finding (broken chain, dead end, logic gap, etc.): quote the exact code that proves it.
+   If you can't quote specific code, retract the finding.
+3. For every "complete" chain: name the actual function calls in sequence (not inferred — real names
+   from the code you read).
+4. Remove any section that isn't about a verified broken chain (no "areas for investigation," no
+   "well-implemented features," no improvement suggestions).
+
+Rewrite your analysis with only what survives verification. If nothing is broken, say so in one
+sentence and stop."""
+
 EXTRACT_DESIGN_PROMPT = """Based on our conversation so far, extract and summarize the current design state.
 
 Format it as a clean, structured document that another AI reviewer could understand cold. Include:
@@ -176,8 +190,14 @@ class ChatEngine:
         self.dispatcher = dispatcher
         self.github_ctx = github_ctx or GitHubContextProvider()
 
-    async def send_message(self, session_id: str, user_message: str) -> str:
-        """Send user message to Lead AI, get response. Maintains full history in DB."""
+    async def send_message(self, session_id: str, user_message: str) -> dict:
+        """Send user message to Lead AI, get response. Maintains full history in DB.
+
+        Returns dict with:
+            - response: the Lead's response (or verified response if auto-verification triggered)
+            - initial_response: the pre-verification response (only if verification happened)
+            - verified: bool indicating if auto-verification was applied
+        """
         db = await get_db()
         try:
             # Get session info
@@ -226,6 +246,7 @@ class ChatEngine:
             github_context = await self._get_github_context(
                 session_id, lead_model, messages, att_rows, db
             )
+            has_code_context = bool(att_rows) or bool(github_context)
             if github_context:
                 system += github_context
 
@@ -241,9 +262,57 @@ class ChatEngine:
             )
             await db.commit()
 
-            return response
+            # Auto-verification: if this is the first message and code is loaded,
+            # challenge the Lead to prove its claims
+            is_first_message = len(messages) <= 1  # only the user message we just added
+            if has_code_context and is_first_message:
+                initial_response = response
+                verified_response = await self._verify_analysis(
+                    session_id, lead_model, title, system, db
+                )
+                return {
+                    "response": verified_response,
+                    "initial_response": initial_response,
+                    "verified": True,
+                }
+
+            return {"response": response, "verified": False}
         finally:
             await db.close()
+
+    async def _verify_analysis(
+        self, session_id: str, lead_model: str, title: str, system: str, db
+    ) -> str:
+        """Send verification challenge and return the verified analysis."""
+        # Save the verification prompt as a user message
+        verify_id = str(uuid.uuid4())
+        await db.execute(
+            "INSERT INTO messages (id, session_id, role, content) VALUES (?, ?, ?, ?)",
+            (verify_id, session_id, "user", VERIFICATION_PROMPT),
+        )
+        await db.commit()
+
+        # Rebuild message history (now includes initial response + verification prompt)
+        cursor = await db.execute(
+            "SELECT role, content FROM messages WHERE session_id = ? ORDER BY created_at",
+            (session_id,),
+        )
+        rows = await cursor.fetchall()
+        messages = [{"role": r["role"], "content": r["content"]} for r in rows]
+
+        # Call Lead AI again with full context
+        result = await self.dispatcher.chat(lead_model, messages, system=system)
+        verified = result["content"]
+
+        # Save verified response
+        resp_id = str(uuid.uuid4())
+        await db.execute(
+            "INSERT INTO messages (id, session_id, role, content) VALUES (?, ?, ?, ?)",
+            (resp_id, session_id, "assistant", verified),
+        )
+        await db.commit()
+
+        return verified
 
     async def _get_github_context(
         self, session_id: str, lead_model: str,
