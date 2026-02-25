@@ -414,7 +414,15 @@ async function sendChat(e) {
         }
     }
 
-    if (!message) return false;
+    // If no text but GitHub repo is connected, send a default analyze prompt
+    if (!message) {
+        const hasGitHubRepo = !!document.getElementById('github-connected');
+        if (hasGitHubRepo) {
+            message = 'Analyze the connected codebase.';
+        } else {
+            return false;
+        }
+    }
 
     const btn = document.getElementById('send-btn');
     const chatMessages = document.getElementById('chat-messages');
