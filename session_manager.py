@@ -319,6 +319,77 @@ class SessionManager:
         finally:
             await db.close()
 
+    async def get_timeline_data(self, session_id: str) -> list[dict]:
+        """Get evolution timeline: rounds with changelog entries and per-model attribution."""
+        db = await get_db()
+        try:
+            # Get all completed review rounds
+            cursor = await db.execute(
+                """SELECT id, round_number, dispatched_at, completed_at
+                   FROM review_rounds WHERE session_id = ? AND completed_at IS NOT NULL
+                   ORDER BY round_number""",
+                (session_id,),
+            )
+            rounds = [dict(r) for r in await cursor.fetchall()]
+
+            # Get all changelog entries for this session
+            cl_cursor = await db.execute(
+                "SELECT * FROM changelog WHERE session_id = ? ORDER BY round_number, created_at",
+                (session_id,),
+            )
+            all_changes = [dict(r) for r in await cl_cursor.fetchall()]
+
+            # Group changes by round_number
+            changes_by_round: dict[int, list[dict]] = {}
+            for c in all_changes:
+                rn = c["round_number"]
+                if rn not in changes_by_round:
+                    changes_by_round[rn] = []
+                changes_by_round[rn].append({
+                    "id": c["id"],
+                    "category": c["category"],
+                    "description": c["description"],
+                    "source_reviewers": json.loads(c["source_reviewers"]),
+                    "confidence": c["confidence"],
+                    "accepted": bool(c["accepted"]),
+                    "rejection_reason": c["rejection_reason"],
+                })
+
+            result = []
+            for rnd in rounds:
+                rn = rnd["round_number"]
+                changes = changes_by_round.get(rn, [])
+
+                # Compute per-model attribution
+                attribution: dict[str, dict] = {}
+                for ch in changes:
+                    for reviewer in ch["source_reviewers"]:
+                        if reviewer not in attribution:
+                            attribution[reviewer] = {"proposed": 0, "accepted": 0, "rejected": 0}
+                        attribution[reviewer]["proposed"] += 1
+                        if ch["accepted"]:
+                            attribution[reviewer]["accepted"] += 1
+                        else:
+                            attribution[reviewer]["rejected"] += 1
+
+                accepted_count = sum(1 for c in changes if c["accepted"])
+                rejected_count = sum(1 for c in changes if not c["accepted"])
+
+                result.append({
+                    "round_number": rn,
+                    "dispatched_at": rnd["dispatched_at"],
+                    "completed_at": rnd["completed_at"],
+                    "changes_proposed": len(changes),
+                    "changes_accepted": accepted_count,
+                    "changes_rejected": rejected_count,
+                    "changes_pending": 0,
+                    "changes": changes,
+                    "attribution": attribution,
+                })
+            return result
+        finally:
+            await db.close()
+
     # ─── GitHub repo management ──────────────────────────────
 
     async def connect_github_repo(self, session_id: str, repo_url: str, owner: str,

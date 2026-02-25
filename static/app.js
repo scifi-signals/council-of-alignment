@@ -161,6 +161,9 @@ function submitDecisions() {
         // Collapse the right panel — changes are decided
         document.getElementById('session-body').classList.remove('has-council');
         changesPanel.innerHTML = '';
+
+        // Refresh evolution timeline
+        if (typeof loadTimeline === 'function') loadTimeline();
     })
     .catch(err => {
         clearInterval(timerInterval);

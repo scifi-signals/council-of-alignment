@@ -736,6 +736,16 @@ async def api_cost():
     return JSONResponse({"summary": dispatcher.get_cost_summary()})
 
 
+@app.get("/api/timeline/{session_id}")
+async def api_timeline(session_id: str):
+    """Get evolution timeline data for a session."""
+    session = await sm.get_session(session_id)
+    if not session:
+        raise HTTPException(404, "Session not found")
+    data = await sm.get_timeline_data(session_id)
+    return JSONResponse({"rounds": data})
+
+
 # ─── Helpers ─────────────────────────────────────────────────
 
 def _escape(text: str) -> str:

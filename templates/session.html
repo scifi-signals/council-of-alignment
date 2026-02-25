@@ -17,6 +17,20 @@
         </div>
     </div>
 
+    <!-- Evolution Timeline (visible after first council round) -->
+    {% if round_number > 1 %}
+    <div class="evolution-timeline" id="evolution-timeline">
+        <button class="timeline-toggle" onclick="toggleTimeline()">
+            <span class="timeline-toggle-icon" id="timeline-arrow">&#9654;</span>
+            Evolution Timeline
+        </button>
+        <div class="timeline-content" id="timeline-content" style="display:none">
+            <div class="timeline-track" id="timeline-track"></div>
+            <div class="timeline-detail" id="timeline-detail"></div>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Session body: single column by default, side-by-side when undecided changes -->
     <div class="session-body{% if synthesis and has_undecided %} has-council{% endif %}" id="session-body">
 
@@ -271,6 +285,11 @@
 const SESSION_ID = "{{ session.id }}";
 const LEAD_NAME = "{{ models[session.lead_model].name }}";
 const LEAD_COLOR = "{{ models[session.lead_model].color }}";
+const MODELS_INFO = {
+    {% for key, m in models.items() %}
+    "{{ key }}": { name: "{{ m.name }}", color: "{{ m.color }}" },
+    {% endfor %}
+};
 
 function scrollChat() {
     const el = document.getElementById('chat-messages');
@@ -583,6 +602,9 @@ async function conveneCouncil() {
             changesPanel.appendChild(changesContent);
             document.getElementById('session-body').classList.add('has-council');
         }
+
+        // Refresh evolution timeline
+        loadTimeline();
     } catch (err) {
         clearInterval(stepInterval);
         clearInterval(timerInterval);
@@ -682,8 +704,197 @@ async function disconnectGitHub() {
     }
 }
 
+// ─── Evolution Timeline ──────────────────────────────────
+
+function toRoman(n) {
+    const vals = [[1000,'M'],[900,'CM'],[500,'D'],[400,'CD'],[100,'C'],[90,'XC'],
+                  [50,'L'],[40,'XL'],[10,'X'],[9,'IX'],[5,'V'],[4,'IV'],[1,'I']];
+    let result = '';
+    for (const [val, numeral] of vals) {
+        while (n >= val) { result += numeral; n -= val; }
+    }
+    return result;
+}
+
+let timelineData = null;
+
+async function loadTimeline() {
+    const el = document.getElementById('evolution-timeline');
+    if (!el) return;
+    try {
+        const resp = await fetch(`/api/timeline/${SESSION_ID}`);
+        if (!resp.ok) return;
+        const data = await resp.json();
+        timelineData = data.rounds;
+        renderTimeline(timelineData);
+    } catch (err) {
+        console.error('Failed to load timeline:', err);
+    }
+}
+
+function renderTimeline(rounds) {
+    const track = document.getElementById('timeline-track');
+    if (!track || !rounds || rounds.length === 0) return;
+
+    track.innerHTML = '';
+    rounds.forEach((round, i) => {
+        // Add connector between nodes
+        if (i > 0) {
+            const connector = document.createElement('div');
+            connector.className = 'timeline-connector';
+            track.appendChild(connector);
+        }
+
+        const node = document.createElement('div');
+        node.className = 'timeline-node';
+        if (i === rounds.length - 1) node.classList.add('active');
+        node.onclick = () => selectRound(round.round_number, rounds);
+
+        const circle = document.createElement('div');
+        circle.className = 'timeline-node-circle';
+        circle.textContent = toRoman(round.round_number);
+
+        const meta = document.createElement('div');
+        meta.className = 'timeline-node-meta';
+
+        // Short timestamp
+        if (round.completed_at) {
+            const date = new Date(round.completed_at);
+            const ts = document.createElement('div');
+            ts.className = 'timeline-node-date dim';
+            ts.textContent = date.toLocaleDateString(undefined, {month: 'short', day: 'numeric'});
+            meta.appendChild(ts);
+        }
+
+        // Accepted badge
+        if (round.changes_proposed > 0) {
+            const badge = document.createElement('div');
+            badge.className = 'timeline-node-badge';
+            badge.textContent = `${round.changes_accepted}/${round.changes_proposed} accepted`;
+            meta.appendChild(badge);
+        }
+
+        node.appendChild(circle);
+        node.appendChild(meta);
+        track.appendChild(node);
+    });
+
+    // Auto-select the latest round
+    if (rounds.length > 0) {
+        selectRound(rounds[rounds.length - 1].round_number, rounds);
+    }
+
+    // Restore collapse state
+    if (sessionStorage.getItem('timeline-open') === 'true') {
+        showTimelineContent(true);
+    }
+}
+
+function selectRound(roundNumber, rounds) {
+    const round = rounds.find(r => r.round_number === roundNumber);
+    if (!round) return;
+
+    // Update active node
+    document.querySelectorAll('.timeline-node').forEach((node, i) => {
+        node.classList.toggle('active', rounds[i].round_number === roundNumber);
+    });
+
+    const detail = document.getElementById('timeline-detail');
+    if (!detail) return;
+
+    let html = `<div class="timeline-round-header">`;
+    html += `<h4>Round ${toRoman(roundNumber)}</h4>`;
+    html += `<div class="timeline-round-badges">`;
+    if (round.changes_accepted > 0) html += `<span class="badge badge-accepted">${round.changes_accepted} accepted</span>`;
+    if (round.changes_rejected > 0) html += `<span class="badge badge-rejected">${round.changes_rejected} rejected</span>`;
+    if (round.changes_proposed === 0) html += `<span class="badge badge-single">No changes proposed</span>`;
+    html += `</div></div>`;
+
+    // Attribution bars
+    const attrEntries = Object.entries(round.attribution || {});
+    if (attrEntries.length > 0) {
+        html += `<div class="timeline-attribution">`;
+        const maxProposed = Math.max(...attrEntries.map(([, a]) => a.proposed), 1);
+        for (const [model, attr] of attrEntries) {
+            const info = findModelInfo(model);
+            const acceptPct = (attr.accepted / maxProposed) * 100;
+            const rejectPct = (attr.rejected / maxProposed) * 100;
+            html += `<div class="attribution-row">`;
+            html += `<span class="attribution-label" style="color: ${info.color}">${info.name}</span>`;
+            html += `<div class="attribution-bar-track">`;
+            html += `<div class="attribution-bar-fill" style="width: ${acceptPct}%; background: ${info.color}"></div>`;
+            html += `<div class="attribution-bar-fill attribution-bar-rejected" style="width: ${rejectPct}%; background: ${info.color}"></div>`;
+            html += `</div>`;
+            html += `<span class="attribution-count dim">${attr.accepted}/${attr.proposed}</span>`;
+            html += `</div>`;
+        }
+        html += `</div>`;
+    }
+
+    // Change list
+    if (round.changes && round.changes.length > 0) {
+        html += `<div class="timeline-changes">`;
+        for (const ch of round.changes) {
+            const icon = ch.accepted ? '&#10003;' : '&#10007;';
+            const iconClass = ch.accepted ? 'change-icon-accepted' : 'change-icon-rejected';
+            const reviewerChips = (ch.source_reviewers || []).map(r => {
+                const info = findModelInfo(r);
+                return `<span class="model-chip" style="color: ${info.color}; border-color: ${info.color}40">${info.name}</span>`;
+            }).join(' ');
+
+            html += `<div class="timeline-change-row">`;
+            html += `<span class="timeline-change-icon ${iconClass}">${icon}</span>`;
+            html += `<div class="timeline-change-body">`;
+            html += `<div class="timeline-change-badges">`;
+            html += `<span class="change-category">${escapeHtml(ch.category || 'other')}</span>`;
+            html += `<span class="badge badge-${ch.confidence || 'single'} badge-sm">${escapeHtml(ch.confidence || 'single')}</span>`;
+            html += `</div>`;
+            html += `<span class="timeline-change-desc">${escapeHtml(ch.description)}</span>`;
+            html += `<div class="change-source">${reviewerChips}</div>`;
+            html += `</div></div>`;
+        }
+        html += `</div>`;
+    }
+
+    detail.innerHTML = html;
+}
+
+function findModelInfo(name) {
+    // Try exact key match
+    if (MODELS_INFO[name]) return MODELS_INFO[name];
+    // Try case-insensitive key match
+    const lower = name.toLowerCase();
+    if (MODELS_INFO[lower]) return MODELS_INFO[lower];
+    // Try matching by display name
+    for (const [key, info] of Object.entries(MODELS_INFO)) {
+        if (info.name.toLowerCase() === lower) return info;
+    }
+    return { name: name, color: 'var(--text-secondary)' };
+}
+
+function toggleTimeline() {
+    const content = document.getElementById('timeline-content');
+    const arrow = document.getElementById('timeline-arrow');
+    if (!content) return;
+    const isOpen = content.style.display !== 'none';
+    showTimelineContent(!isOpen);
+    sessionStorage.setItem('timeline-open', !isOpen);
+}
+
+function showTimelineContent(show) {
+    const content = document.getElementById('timeline-content');
+    const arrow = document.getElementById('timeline-arrow');
+    if (!content) return;
+    content.style.display = show ? 'block' : 'none';
+    if (arrow) arrow.classList.toggle('open', show);
+}
+
 // Init
 scrollChat();
 document.querySelectorAll('.markdown-body').forEach(renderMarkdown);
+
+{% if round_number > 1 %}
+loadTimeline();
+{% endif %}
 </script>
 {% endblock %}
