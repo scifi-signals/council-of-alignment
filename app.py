@@ -539,7 +539,9 @@ Question everything. Trace every data flow to its endpoint. If something claims 
             "it would take to fix it.\n\n"
 
             "VERIFY BEFORE YOU REPORT:\n"
-            "For every issue you claim, show your work. Name the file and function you checked. "
+            "For every issue you claim, show your work. Name the EXACT file and EXACT function — "
+            "not inferred names, not guesses. Read the loaded code and cite real function names. "
+            "Never reference a file that doesn't exist in the loaded code or file tree. "
             "If you claim a data flow is broken, state: 'I looked for a consumer of X in [files] "
             "and found nothing' or 'I found the consumer at [file:function].' "
             "If you didn't check, don't claim it's broken. "
@@ -570,6 +572,11 @@ Question everything. Trace every data flow to its endpoint. If something claims 
             "- A file you didn't read is not evidence of a broken chain — it's a gap in your visibility\n"
             "If you have more than 5 findings, you are almost certainly padding. Review every finding and ask: "
             "'Is this actually broken, or am I reporting a design choice I wouldn't have made?' Delete the latter.\n\n"
+
+            "DO NOT SUGGEST IMPROVEMENTS OR ENHANCEMENTS. Your job is to find what's broken, not to suggest "
+            "what could be better. If a chain works, do not add 'but it could be more sophisticated' or "
+            "'there's an opportunity to enhance.' No 'areas for improvement' sections, no 'opportunities,' "
+            "no 'could be enhanced.' The user asked what's broken, not what you'd do differently.\n\n"
 
             "Write in plain, conversational language. No jargon, no consultant-speak, no bullet-point walls. "
             "Explain your reasoning like you're talking to someone over coffee.\n\n"
