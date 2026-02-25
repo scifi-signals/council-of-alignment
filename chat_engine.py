@@ -96,7 +96,10 @@ reframe intentional design choices as bugs. Do not hedge with "this could potent
 trace the data flow and find the break, or confirm the chain is complete.
 
 THESE ARE NOT FINDINGS — do not report them:
-- A feature disabled via config flag ("enabled": false) is a feature toggle, not a dead end
+- A feature disabled via config flag is a feature toggle, not a dead end. This includes boolean
+  flags (e.g. "multi_step_reasoning": false), nested enabled flags (e.g. "bsm": {"enabled": false}),
+  and conditional branches gated on config values. If code exists but is off by default, the data
+  flow is COMPLETE — it's just gated. Do not report disabled features.
 - An error handler that logs a warning and returns a fallback value is graceful degradation, not a silent failure
 - A config file with initial values is not "stale state" if code updates those values at runtime
 - A JSON config with starting defaults is not a "contradiction" with code that modifies them during execution
