@@ -85,7 +85,7 @@ class ModelDispatcher:
         client = AsyncAnthropic(api_key=api_key)
         kwargs = {
             "model": DIRECT_MODEL_IDS[model_key],
-            "max_tokens": 8192,
+            "max_tokens": 16384,
             "messages": messages,
         }
         if system:
@@ -116,7 +116,7 @@ class ModelDispatcher:
         resp = await client.chat.completions.create(
             model=DIRECT_MODEL_IDS[model_key],
             messages=full_messages,
-            max_tokens=8192,
+            max_tokens=16384,
         )
         content = resp.choices[0].message.content
         usage = resp.usage

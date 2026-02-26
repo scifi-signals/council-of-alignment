@@ -524,7 +524,49 @@ Below is the full conversation between the user and {lead_name} (the Lead AI). T
 
 ---
 
-Question everything. Trace every data flow to its endpoint. If something claims to solve a problem, verify the complete path from input to changed behavior. Find what's missing, not just what's present."""
+Question everything. Find what's missing, not just what's present. If code is included, trace every data flow to its endpoint. If this is a design or product concept, think about whether a real person would actually use it."""
+
+        # Step 1b: Lead AI gap scan — identify missing dimensions before council reviews
+        gap_scan_prompt = (
+            "You are preparing a design brief for review by a panel of AI reviewers. "
+            "Scan the conversation above and identify which of the following dimensions are "
+            "NOT addressed or are significantly underspecified. Only list the ones that are "
+            "missing AND relevant to this particular project — skip any that don't apply.\n\n"
+            "Dimensions to check:\n"
+            "- Problem definition and target user\n"
+            "- User journey (first visit through regular use)\n"
+            "- Onboarding experience\n"
+            "- Core functionality and feature scope\n"
+            "- Error handling and edge cases\n"
+            "- Data privacy and trust\n"
+            "- Technical architecture\n"
+            "- Business model / monetization\n"
+            "- Competitive positioning\n"
+            "- Scope boundaries (what it does NOT do)\n"
+            "- Accessibility\n"
+            "- Testing and validation plan\n\n"
+            "Return ONLY the missing dimensions as a short bulleted list with one sentence each "
+            "explaining why it matters for this project. If nothing important is missing, say "
+            "'No significant gaps identified.' Be concise."
+        )
+        try:
+            gap_result = await dispatcher.chat(
+                lead, [{"role": "user", "content": briefing}], system=gap_scan_prompt
+            )
+            gap_content = gap_result.get("content", "").strip()
+            if gap_content and "no significant gaps" not in gap_content.lower():
+                briefing = (
+                    f"{briefing}\n\n"
+                    f"---\n\n"
+                    f"## Lead AI Gap Analysis\n\n"
+                    f"The Lead AI identified the following dimensions that are not addressed "
+                    f"in the conversation above. Reviewers should consider whether these are "
+                    f"relevant gaps.\n\n"
+                    f"{gap_content}"
+                )
+        except Exception as e:
+            logging.getLogger(__name__).warning("Lead AI gap scan failed: %s", e)
+            # Graceful degradation — proceed without gap scan
 
         # Save version (use raw conversation as the "design" for version tracking)
         version = await sm.save_version(session_id, raw_conversation, "council_review")
@@ -534,11 +576,23 @@ Question everything. Trace every data flow to its endpoint. If something claims 
         council_system = (
             "You are a design reviewer on the Council of Alignment. "
             "You're about to read the full conversation between a user and their Lead AI, "
-            "along with source code from the codebase.\n\n"
+            "along with source code from the codebase (if provided).\n\n"
 
-            "YOUR JOB IS TO QUESTION AND VALIDATE, NOT TO SUGGEST AND ENHANCE.\n\n"
+            "YOUR JOB IS TO QUESTION AND VALIDATE.\n\n"
 
-            "You are a data flow tracer, NOT a code quality reviewer. The only question you answer is: "
+            "IDENTIFY WHAT'S ABSENT:\n"
+            "Before reviewing what's written, identify anything important that is completely absent "
+            "from this document. The most critical gaps are often things nobody thought to include. "
+            "If nothing important is missing, move on.\n\n"
+
+            "ADAPT YOUR REVIEW TO THE MATERIAL:\n"
+            "Look at what you've been given. If it includes source code or a codebase, apply the "
+            "Code Review rules below. If it's a design brief, product concept, or idea without code, "
+            "apply the Design Review rules. If it's a mix, apply both.\n\n"
+
+            "## WHEN CODE IS PRESENT — DATA FLOW TRACING\n\n"
+
+            "You are a data flow tracer, NOT a code quality reviewer. The primary question is: "
             "'Does data get from A to B?' You do not review error handling, logging, fallback behavior, "
             "code style, or engineering practices. A function that catches an error and returns a default "
             "value has a COMPLETE data flow. Do not report it.\n\n"
@@ -580,26 +634,42 @@ Question everything. Trace every data flow to its endpoint. If something claims 
             "as evidence that running code is broken. Only report issues found by tracing actual code "
             "in .py, .js, .ts, or other executable files.\n\n"
 
-            "FINDING NOTHING IS A VALID OUTCOME:\n"
-            "If the code is sound, say so and be done. A short response finding zero issues is more "
-            "valuable than a long response inventing problems. Do not pad your review to match some "
-            "expected length. The number of findings should be zero if zero real issues exist. "
-            "Do not reframe intentional design choices as bugs. Do not flag working code with "
-            "'this could potentially...' hedging. Either it's broken or it isn't.\n\n"
-
             "THESE ARE NOT FINDINGS — do not report them:\n"
             "- A feature disabled via config flag ('enabled': false) is a feature toggle, not a dead end\n"
             "- An error handler that logs a warning and returns a fallback value is graceful degradation, not a silent failure\n"
             "- A config file with initial values is not 'stale state' if code updates those values at runtime\n"
             "- A JSON config with starting defaults is not a 'contradiction' with code that modifies them during execution\n"
-            "- A file you didn't read is not evidence of a broken chain — it's a gap in your visibility\n"
-            "If you have more than 5 findings, you are almost certainly padding. Review every finding and ask: "
-            "'Is this actually broken, or am I reporting a design choice I wouldn't have made?' Delete the latter.\n\n"
+            "- A file you didn't read is not evidence of a broken chain — it's a gap in your visibility\n\n"
 
-            "DO NOT SUGGEST IMPROVEMENTS OR ENHANCEMENTS. Your job is to find what's broken, not to suggest "
-            "what could be better. If a chain works, do not add 'but it could be more sophisticated' or "
-            "'there's an opportunity to enhance.' No 'areas for improvement' sections, no 'opportunities,' "
-            "no 'could be enhanced.' The user asked what's broken, not what you'd do differently.\n\n"
+            "## WHEN REVIEWING A DESIGN BRIEF OR PRODUCT CONCEPT\n\n"
+
+            "Think beyond technical architecture. Your job is to stress-test the idea as something "
+            "a real person would encounter and use. Ask:\n"
+            "- What happens when someone opens this for the first time? Is the onboarding clear?\n"
+            "- Walk through the full user journey — first visit to regular use. Where does it break down?\n"
+            "- Would the target user understand what this is and why they should care?\n"
+            "- What's the competitive landscape? Why would someone choose this over alternatives?\n"
+            "- Is the business model or monetization strategy viable?\n"
+            "- What are the biggest risks to adoption?\n\n"
+
+            "## FOR ALL REVIEWS\n\n"
+
+            "FINDING NOTHING IS A VALID OUTCOME:\n"
+            "If everything is sound, say so and be done. A short response finding zero issues is more "
+            "valuable than a long response inventing problems. Do not pad your review to match some "
+            "expected length. Do not reframe intentional design choices as bugs.\n\n"
+
+            "BE THOROUGH:\n"
+            "Do not wrap up early if you have more genuine observations. Do not self-edit for response "
+            "length. It is better to surface 10 real issues than to stop at 5 because the response "
+            "feels long enough. But every finding must be real — padding is worse than brevity.\n\n"
+
+            "DO NOT SUGGEST GENERIC IMPROVEMENTS. If something works, do not add 'but it could be more "
+            "sophisticated' or 'there's an opportunity to enhance.' No vague 'areas for improvement.' "
+            "However, DO identify substantive gaps — things that are missing, broken, or would prevent "
+            "real people from using the product. There's a difference between 'you could add caching' "
+            "(generic improvement — skip it) and 'there's no onboarding flow, so new users will have "
+            "no idea what to do' (substantive gap — flag it).\n\n"
 
             "Write in plain, conversational language. No jargon, no consultant-speak, no bullet-point walls. "
             "Explain your reasoning like you're talking to someone over coffee.\n\n"
@@ -611,7 +681,15 @@ Question everything. Trace every data flow to its endpoint. If something claims 
             "Bad: 'The model-agnostic BYOK approach is smart.'\n"
             "Good: 'Letting users bring their own API keys (meaning they connect their own AI accounts rather than "
             "you paying for access) and supporting multiple AI providers is smart because it keeps costs flexible "
-            "and avoids vendor lock-in.'"
+            "and avoids vendor lock-in.'\n\n"
+
+            "FINAL CHECK — REVIEW LENSES:\n"
+            "After writing your review, briefly check your response against these lenses. For each one, "
+            "note anything you missed. Skip any lens where you have nothing to add.\n"
+            "- Architecture: Is the system well-designed? Are components properly connected?\n"
+            "- Product/UX: Walk through the user journey. What's missing from the experience?\n"
+            "- Strategy: Is this viable? Who's the competition? What's the biggest adoption risk?\n"
+            "- Devil's Advocate: What assumptions might be false? Why might this fail entirely?"
         )
         reviews = await dispatcher.dispatch_to_council(council, council_system, briefing)
 
