@@ -116,6 +116,17 @@ async def session_page(request: Request, session_id: str):
         # Reviews from the latest round only (matches the displayed synthesis)
         reviews = await sm.get_reviews(session_id, round_number=latest_round) if latest_round > 0 else []
 
+        # Get review round completed_at for chronological positioning
+        review_completed_at = None
+        if latest_round > 0:
+            rr_cursor = await db.execute(
+                "SELECT completed_at FROM review_rounds WHERE session_id = ? AND round_number = ?",
+                (session_id, latest_round),
+            )
+            rr_row = await rr_cursor.fetchone()
+            if rr_row and rr_row[0]:
+                review_completed_at = rr_row[0]
+
         # Attachments
         att_cursor = await db.execute(
             "SELECT id, filename, size_bytes, created_at FROM attachments WHERE session_id = ? ORDER BY filename",
@@ -124,6 +135,15 @@ async def session_page(request: Request, session_id: str):
         attachments = [dict(r) for r in await att_cursor.fetchall()]
     finally:
         await db.close()
+
+    # Insert council review marker at the right chronological position
+    if review_completed_at and synthesis:
+        messages.append({
+            "role": "council_review",
+            "content": "",
+            "created_at": review_completed_at,
+        })
+        messages.sort(key=lambda m: m["created_at"])
 
     # Build lookup of already-decided changes from changelog
     decided = {}
@@ -161,6 +181,7 @@ async def session_page(request: Request, session_id: str):
         github_file_count=github_file_count,
         github_enabled=bool(GITHUB_TOKEN),
         round_roman=_to_roman(round_number - 1) if round_number > 1 else "",
+        review_completed_at=review_completed_at,
     ))
 
 

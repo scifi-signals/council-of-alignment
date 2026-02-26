@@ -50,6 +50,8 @@ body { font-family: var(--font-body); background: var(--bg-page); color: var(--t
 .nav-icon { font-size: 1.4rem; color: var(--accent); }
 .nav-orbs { display: inline-grid; grid-template-columns: 9px 9px; gap: 3px; margin-right: 4px; vertical-align: middle; }
 .nav-orbs .orb { display: block; width: 9px; height: 9px; border-radius: 50%; box-shadow: 0 0 4px rgba(0,0,0,0.15); }
+.btn-orbs { display: inline-grid; grid-template-columns: 10px 10px; gap: 3px; margin-right: 6px; vertical-align: middle; }
+.btn-orbs .orb { display: block; width: 10px; height: 10px; border-radius: 50%; box-shadow: 0 0 4px rgba(255,255,255,0.3); }
 .nav-links { display: flex; gap: var(--space-3); }
 .nav-links a { color: var(--text-muted); text-decoration: none; font-size: 14px; font-weight: 500; transition: color 0.15s; }
 .nav-links a:hover { color: var(--text-primary); }
@@ -170,6 +172,10 @@ body { font-family: var(--font-body); background: var(--bg-page); color: var(--t
 .assistant-message { background: var(--bg-secondary); align-self: flex-start; max-width: 100%; border: 1px solid var(--border-subtle); box-shadow: var(--shadow-sm); }
 .message-sender { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
 .message-content { font-size: 15px; line-height: 1.7; word-wrap: break-word; color: var(--text-primary); }
+.message-content h1 { font-size: 1.3em; margin: 1em 0 0.5em; }
+.message-content h2 { font-size: 1.15em; margin: 1em 0 0.4em; }
+.message-content h3 { font-size: 1.05em; margin: 0.8em 0 0.3em; }
+.message-content h4, .message-content h5, .message-content h6 { font-size: 1em; margin: 0.6em 0 0.3em; }
 
 /* Verification display */
 .initial-analysis { opacity: 0.5; border-left: 3px solid var(--text-muted); }

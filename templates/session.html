@@ -47,17 +47,8 @@
             {% endif %}
 
             {% for msg in messages %}
-            <div class="message {{ 'user-message' if msg.role == 'user' else 'assistant-message' }}">
-                <div class="message-sender"
-                     {% if msg.role == 'assistant' %}style="color: {{ models[session.lead_model].color }}"{% endif %}>
-                    {{ "You" if msg.role == "user" else models[session.lead_model].name }}
-                </div>
-                <div class="message-content markdown-body">{{ msg.content | e | replace('\n', '<br>') }}</div>
-            </div>
-            {% endfor %}
-
-            {% if synthesis %}
-            <!-- Council review rendered in chat flow -->
+            {% if msg.role == 'council_review' and synthesis %}
+            <!-- Council review rendered at chronological position -->
             <div class="council-review-content" id="council-review-container">
                 <h2>Council Review &mdash; Round {{ round_roman }}</h2>
 
@@ -153,7 +144,16 @@
                 </div>
                 {% endfor %}
             </div>
+            {% else %}
+            <div class="message {{ 'user-message' if msg.role == 'user' else 'assistant-message' }}">
+                <div class="message-sender"
+                     {% if msg.role == 'assistant' %}style="color: {{ models[session.lead_model].color }}"{% endif %}>
+                    {{ "You" if msg.role == "user" else models[session.lead_model].name }}
+                </div>
+                <div class="message-content markdown-body">{{ msg.content | e | replace('\n', '<br>') }}</div>
+            </div>
             {% endif %}
+            {% endfor %}
         </div>
 
         <!-- Fixed bottom: Convene button + file upload + input -->
@@ -161,7 +161,12 @@
             <div class="chat-input-wrapper">
                 <div class="convene-row">
                     <button id="convene-btn" class="btn btn-convene" onclick="conveneCouncil()">
-                        ⚖ Convene the Council
+                        <span class="btn-orbs">
+                            <span class="orb" style="background:var(--claude)"></span>
+                            <span class="orb" style="background:var(--chatgpt)"></span>
+                            <span class="orb" style="background:var(--gemini)"></span>
+                            <span class="orb" style="background:var(--grok)"></span>
+                        </span> Convene the Council
                     </button>
                 </div>
                 <form id="chat-form" onsubmit="return sendChat(event)">
