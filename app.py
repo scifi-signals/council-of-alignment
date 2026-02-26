@@ -125,7 +125,8 @@ async def session_page(request: Request, session_id: str):
             )
             rr_row = await rr_cursor.fetchone()
             if rr_row and rr_row[0]:
-                review_completed_at = rr_row[0]
+                # Normalize to space-separated format to match message timestamps
+                review_completed_at = rr_row[0].replace("T", " ")
 
         # Attachments
         att_cursor = await db.execute(
