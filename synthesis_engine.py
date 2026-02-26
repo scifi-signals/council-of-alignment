@@ -42,6 +42,8 @@ Below is the complete conversation between the user and the Lead AI. This is eve
 
 Now produce a synthesis in EXACTLY this JSON format. No other text before or after the JSON.
 
+**CRITICAL — DO NOT RE-PROPOSE DECIDED CHANGES:** If a "Previously Decided Changes" section appeared above, you MUST NOT include ANY of those changes in your proposed_changes list. Accepted changes are DONE — the user already applied them. Rejected changes are OFF THE TABLE unless a reviewer in THIS round explicitly says "we should reconsider X because [new evidence]". Any proposed_change that overlaps with a previously decided change — even if reworded — is FORBIDDEN. If in doubt, leave it out. Propose ONLY genuinely new findings from this round.
+
 IMPORTANT INSTRUCTIONS FOR DEPTH:
 - Each "point" in consensus should be 2-4 sentences explaining what was agreed and why it matters
 - Each "point" in majority should be 2-4 sentences, AND include "against_reasoning" with a genuine 1-2 sentence summary of the dissenter's argument — not a dismissal, but a fair representation of why they disagreed
@@ -124,10 +126,14 @@ async def synthesize_reviews(
 
     previous_changes = ""
     if previous_changelog:
-        previous_changes = "## Previously Decided Changes\n\n"
-        previous_changes += "These changes were proposed in earlier rounds. The user has already made decisions on them.\n\n"
+        previous_changes = "## ⚠️ PREVIOUSLY DECIDED CHANGES — DO NOT RE-PROPOSE THESE ⚠️\n\n"
+        previous_changes += (
+            "The user has already acted on these changes from earlier rounds. "
+            "ACCEPTED = already applied (do NOT propose again). "
+            "REJECTED = user said no (do NOT propose again unless a reviewer in THIS round explicitly argues for reconsideration with new evidence).\n\n"
+        )
         for entry in previous_changelog:
-            status = "ACCEPTED" if entry.get("accepted") else "REJECTED"
+            status = "ACCEPTED ✓" if entry.get("accepted") else "REJECTED ✗"
             reason = ""
             if not entry.get("accepted") and entry.get("rejection_reason"):
                 reason = f" (reason: {entry['rejection_reason']})"
