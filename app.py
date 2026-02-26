@@ -803,6 +803,23 @@ async def api_decide(session_id: str, request: Request):
             <div class="message-content markdown-body">{_escape(response_text)}</div>
         </div>
         """
+    # Show "another round recommended" notification if applicable
+    verdict = synthesis.get("overall_verdict", {})
+    if verdict.get("another_round_recommended"):
+        html += """
+        <div class="round-recommended-banner">
+            <span class="banner-icon">
+                <span class="btn-orbs">
+                    <span class="orb" style="background:var(--claude)"></span>
+                    <span class="orb" style="background:var(--chatgpt)"></span>
+                    <span class="orb" style="background:var(--gemini)"></span>
+                    <span class="orb" style="background:var(--grok)"></span>
+                </span>
+            </span>
+            <span>The Council recommends another round of review. When you're ready, hit <strong>Convene the Council</strong> to start Round 2.</span>
+        </div>
+        """
+
     html += "</div>"
     return HTMLResponse(html)
 
