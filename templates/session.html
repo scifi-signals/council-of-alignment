@@ -156,7 +156,8 @@
             {% endfor %}
         </div>
 
-        <!-- Fixed bottom: Convene button + file upload + input -->
+        <!-- Fixed bottom: Convene button + file upload + input (owner only) -->
+        {% if is_owner %}
         <div class="chat-input-bar">
             <div class="chat-input-wrapper">
                 <div class="convene-row">
@@ -232,6 +233,17 @@
                 </div>
             </div>
         </div>
+        {% else %}
+        <div class="chat-input-bar">
+            <div class="auth-banner">
+                {% if user %}
+                You're viewing this session in read-only mode.
+                {% else %}
+                <a href="/auth/login">Sign in with GitHub</a> to create your own sessions.
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
     </div>
 
     <!-- Changes panel (right side when undecided changes exist) -->
@@ -257,12 +269,12 @@
                         <p class="dim" style="margin-top: 0.25rem; font-size: 0.85rem;">Rejected: {{ d.reason }}</p>
                         {% endif %}
                     </div>
-                    {% if not d %}
+                    {% if not d and is_owner %}
                     <div class="change-actions">
                         <button type="button" class="btn btn-accept" onclick="setDecision(this, '{{ c.id }}', true)">Accept</button>
                         <button type="button" class="btn btn-reject" onclick="setDecision(this, '{{ c.id }}', false)">Reject</button>
                     </div>
-                    {% else %}
+                    {% elif d %}
                     <div class="change-actions">
                         <span class="badge {{ 'badge-accepted' if d.accepted else 'badge-rejected' }}">{{ 'Accepted' if d.accepted else 'Rejected' }}</span>
                     </div>
@@ -270,7 +282,7 @@
                 </div>
             {% endfor %}
 
-            {% if has_undecided %}
+            {% if has_undecided and is_owner %}
             <button type="button" class="btn btn-submit-decisions" onclick="submitDecisions()">Submit Decisions</button>
             {% else %}
             <div class="dim" style="text-align: center; padding: var(--space-2);">All changes decided. Continue chatting or convene another round.</div>
@@ -483,6 +495,7 @@ async function sendChat(e) {
         const formData = new FormData();
         formData.append('message', message);
         const resp = await fetch(`/api/chat/${SESSION_ID}`, { method: 'POST', body: formData });
+        if (resp.status === 401) { window.location.href = '/auth/login'; return; }
         const html = await resp.text();
 
         // Remove thinking indicator
@@ -577,6 +590,7 @@ async function conveneCouncil() {
         clearInterval(stepInterval);
         clearInterval(timerInterval);
 
+        if (resp.status === 401) { window.location.href = '/auth/login'; return; }
         if (!resp.ok) {
             const text = await resp.text();
             throw new Error(`Server error ${resp.status}: ${text.substring(0, 200)}`);

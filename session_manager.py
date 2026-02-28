@@ -8,7 +8,7 @@ from config import MODELS, get_council_models
 
 
 class SessionManager:
-    async def create_session(self, title: str, lead_model: str, council_models: list[str] = None) -> dict:
+    async def create_session(self, title: str, lead_model: str, council_models: list[str] = None, user_id: str = None) -> dict:
         """Create a new design session."""
         if lead_model not in MODELS:
             raise ValueError(f"Unknown model: {lead_model}. Choose from: {list(MODELS.keys())}")
@@ -20,8 +20,8 @@ class SessionManager:
         db = await get_db()
         try:
             await db.execute(
-                "INSERT INTO sessions (id, title, lead_model, council_models) VALUES (?, ?, ?, ?)",
-                (session_id, title, lead_model, json.dumps(council_models)),
+                "INSERT INTO sessions (id, title, lead_model, council_models, user_id) VALUES (?, ?, ?, ?, ?)",
+                (session_id, title, lead_model, json.dumps(council_models), user_id),
             )
             await db.commit()
             return {
@@ -29,6 +29,7 @@ class SessionManager:
                 "title": title,
                 "lead_model": lead_model,
                 "council_models": council_models,
+                "user_id": user_id,
             }
         finally:
             await db.close()
@@ -47,6 +48,7 @@ class SessionManager:
                 "council_models": json.loads(row["council_models"]),
                 "created_at": row["created_at"],
                 "status": row["status"],
+                "user_id": row["user_id"],
             }
         finally:
             await db.close()
@@ -76,10 +78,16 @@ class SessionManager:
         finally:
             await db.close()
 
-    async def list_sessions(self) -> list[dict]:
+    async def list_sessions(self, user_id: str = None) -> list[dict]:
         db = await get_db()
         try:
-            cursor = await db.execute("SELECT * FROM sessions ORDER BY created_at DESC")
+            if user_id:
+                cursor = await db.execute(
+                    "SELECT * FROM sessions WHERE user_id = ? OR user_id IS NULL ORDER BY created_at DESC",
+                    (user_id,),
+                )
+            else:
+                cursor = await db.execute("SELECT * FROM sessions ORDER BY created_at DESC")
             rows = await cursor.fetchall()
             return [
                 {
@@ -88,6 +96,7 @@ class SessionManager:
                     "lead_model": r["lead_model"],
                     "status": r["status"],
                     "created_at": r["created_at"],
+                    "user_id": r["user_id"],
                 }
                 for r in rows
             ]

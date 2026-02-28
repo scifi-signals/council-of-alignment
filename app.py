@@ -13,9 +13,10 @@ from fastapi import FastAPI, Request, Form, HTTPException, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from starlette.middleware.sessions import SessionMiddleware
 from starlette.responses import Response
 
-from config import MODELS, get_council_models, GITHUB_TOKEN
+from config import MODELS, get_council_models, GITHUB_TOKEN, SESSION_SECRET, GITHUB_CLIENT_ID
 from database import init_db, get_db
 from dispatcher import ModelDispatcher
 from chat_engine import ChatEngine
@@ -26,6 +27,11 @@ from reviewer_tracker import ReviewerTracker
 from attachment_context import build_attachment_context
 from file_manager import FileManager
 from github_context import GitHubContextProvider, parse_repo_url
+from auth import (
+    github_login_url, exchange_code_for_token, fetch_github_user,
+    get_or_create_user, get_current_user, require_auth, require_auth_api,
+    generate_state,
+)
 
 
 @asynccontextmanager
@@ -34,6 +40,7 @@ async def lifespan(app: FastAPI):
     yield
 
 app = FastAPI(title="Council of Alignment", lifespan=lifespan, docs_url=None, redoc_url=None)
+app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET, max_age=30 * 24 * 60 * 60)
 
 BASE_DIR = os.path.dirname(__file__)
 app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
@@ -56,22 +63,31 @@ def get_engine():
 
 # ─── Template helpers ────────────────────────────────────────
 
-def _ctx(request: Request, **kwargs):
+async def _ctx(request: Request, **kwargs):
     """Build template context with common data."""
-    return {"request": request, "models": MODELS, **kwargs}
+    user = await get_current_user(request)
+    return {"request": request, "models": MODELS, "user": user, **kwargs}
 
 
 # ─── Pages ───────────────────────────────────────────────────
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
-    sessions = await sm.list_sessions()
-    return templates.TemplateResponse("home.html", _ctx(request, sessions=sessions))
+    user = await get_current_user(request)
+    if user:
+        sessions = await sm.list_sessions(user_id=user["id"])
+    else:
+        sessions = []
+    return templates.TemplateResponse("home.html", await _ctx(request, sessions=sessions))
 
 
 @app.get("/new", response_class=HTMLResponse)
 async def new_session_page(request: Request):
-    return templates.TemplateResponse("new.html", _ctx(request))
+    user = await get_current_user(request)
+    if not user:
+        request.session["oauth_next"] = "/new"
+        return RedirectResponse("/auth/login", status_code=302)
+    return templates.TemplateResponse("new.html", await _ctx(request))
 
 
 @app.post("/new")
@@ -80,7 +96,8 @@ async def create_session(
     title: str = Form(...),
     lead: str = Form(...),
 ):
-    session = await sm.create_session(title, lead)
+    user_id = await require_auth_api(request)
+    session = await sm.create_session(title, lead, user_id=user_id)
     return RedirectResponse(f"/session/{session['id']}", status_code=303)
 
 
@@ -166,7 +183,14 @@ async def session_page(request: Request, session_id: str):
     if github_repo and github_repo.get("tree_json"):
         github_file_count = len(json.loads(github_repo["tree_json"]))
 
-    return templates.TemplateResponse("session.html", _ctx(
+    # Determine ownership
+    user = await get_current_user(request)
+    is_owner = False
+    if user:
+        # Owner if: session has no user_id (legacy) or user_id matches
+        is_owner = not session.get("user_id") or session["user_id"] == user["id"]
+
+    return templates.TemplateResponse("session.html", await _ctx(
         request,
         session=session,
         messages=messages,
@@ -183,33 +207,78 @@ async def session_page(request: Request, session_id: str):
         github_enabled=bool(GITHUB_TOKEN),
         round_roman=_to_roman(round_number - 1) if round_number > 1 else "",
         review_completed_at=review_completed_at,
+        is_owner=is_owner,
     ))
 
 
 @app.get("/stats", response_class=HTMLResponse)
 async def stats_page(request: Request):
     stats = await tracker.get_stats()
-    return templates.TemplateResponse("stats.html", _ctx(request, stats=stats))
+    return templates.TemplateResponse("stats.html", await _ctx(request, stats=stats))
+
+
+# ─── Auth routes ─────────────────────────────────────────────
+
+@app.get("/auth/login")
+async def auth_login(request: Request):
+    """Redirect to GitHub OAuth."""
+    if not GITHUB_CLIENT_ID:
+        raise HTTPException(500, "GitHub OAuth not configured")
+    state = generate_state()
+    request.session["oauth_state"] = state
+    return RedirectResponse(github_login_url(state))
+
+
+@app.get("/auth/callback")
+async def auth_callback(request: Request, code: str = "", state: str = ""):
+    """Handle GitHub OAuth callback."""
+    saved_state = request.session.pop("oauth_state", "")
+    if not state or state != saved_state:
+        raise HTTPException(400, "Invalid OAuth state")
+
+    token = await exchange_code_for_token(code)
+    github_user = await fetch_github_user(token)
+    user = await get_or_create_user(github_user)
+    request.session["user_id"] = user["id"]
+
+    # Redirect to where they were trying to go, or home
+    next_url = request.session.pop("oauth_next", "/")
+    return RedirectResponse(next_url)
+
+
+@app.get("/auth/logout")
+async def auth_logout(request: Request):
+    """Clear session and redirect home."""
+    request.session.clear()
+    return RedirectResponse("/")
+
+
+async def _verify_session_owner(session_id: str, user_id: str) -> dict:
+    """Check that user owns the session. Legacy sessions (user_id=NULL) accessible to any logged-in user."""
+    session = await sm.get_session(session_id)
+    if not session:
+        raise HTTPException(404, "Session not found")
+    if session.get("user_id") and session["user_id"] != user_id:
+        raise HTTPException(403, "Not your session")
+    return session
 
 
 # ─── HTMX API endpoints ─────────────────────────────────────
 
 @app.delete("/api/session/{session_id}")
-async def api_delete_session(session_id: str):
+async def api_delete_session(request: Request, session_id: str):
     """Delete a session and all its data."""
-    session = await sm.get_session(session_id)
-    if not session:
-        raise HTTPException(404)
+    user_id = await require_auth_api(request)
+    await _verify_session_owner(session_id, user_id)
     await sm.delete_session(session_id)
     return HTMLResponse("")
 
 
 @app.post("/api/upload/{session_id}")
-async def api_upload(session_id: str, file: UploadFile = File(...)):
+async def api_upload(request: Request, session_id: str, file: UploadFile = File(...)):
     """Upload a zip file and extract text files as session attachments."""
-    session = await sm.get_session(session_id)
-    if not session:
-        raise HTTPException(404)
+    user_id = await require_auth_api(request)
+    await _verify_session_owner(session_id, user_id)
 
     ALLOWED_EXT = {
         ".py", ".js", ".ts", ".jsx", ".tsx", ".json", ".md", ".txt", ".html", ".css",
@@ -263,8 +332,9 @@ async def api_upload(session_id: str, file: UploadFile = File(...)):
 
 
 @app.delete("/api/attachment/{attachment_id}")
-async def api_delete_attachment(attachment_id: str):
+async def api_delete_attachment(request: Request, attachment_id: str):
     """Delete a single attachment."""
+    await require_auth_api(request)
     db = await get_db()
     try:
         await db.execute("DELETE FROM attachments WHERE id = ?", (attachment_id,))
@@ -324,12 +394,11 @@ def _build_attachments_html(attachments: list[dict], session_id: str, full_list:
 @app.post("/api/github/{session_id}")
 async def api_github_connect(session_id: str, request: Request):
     """Connect a GitHub repo to a session."""
+    user_id = await require_auth_api(request)
+    await _verify_session_owner(session_id, user_id)
+
     if not GITHUB_TOKEN:
         return JSONResponse({"error": "GitHub token not configured on server."}, status_code=400)
-
-    session = await sm.get_session(session_id)
-    if not session:
-        raise HTTPException(404)
 
     body = await request.json()
     repo_url = body.get("repo_url", "").strip()
@@ -350,8 +419,10 @@ async def api_github_connect(session_id: str, request: Request):
 
 
 @app.post("/api/github/{session_id}/refresh")
-async def api_github_refresh(session_id: str):
+async def api_github_refresh(request: Request, session_id: str):
     """Re-fetch the repo tree."""
+    user_id = await require_auth_api(request)
+    await _verify_session_owner(session_id, user_id)
     repo_info = await sm.get_github_repo(session_id)
     if not repo_info:
         return JSONResponse({"error": "No GitHub repo connected."}, status_code=400)
@@ -368,8 +439,10 @@ async def api_github_refresh(session_id: str):
 
 
 @app.delete("/api/github/{session_id}")
-async def api_github_disconnect(session_id: str):
+async def api_github_disconnect(request: Request, session_id: str):
     """Disconnect the GitHub repo from a session."""
+    user_id = await require_auth_api(request)
+    await _verify_session_owner(session_id, user_id)
     await sm.disconnect_github_repo(session_id)
     return JSONResponse({"ok": True})
 
@@ -377,6 +450,9 @@ async def api_github_disconnect(session_id: str):
 @app.post("/api/chat/{session_id}")
 async def api_chat(session_id: str, request: Request):
     """Send a message to the Lead AI. Returns HTML fragment for HTMX."""
+    user_id = await require_auth_api(request)
+    await _verify_session_owner(session_id, user_id)
+
     form = await request.form()
     message = form.get("message", "").strip()
     if not message:
@@ -437,8 +513,11 @@ async def api_chat(session_id: str, request: Request):
 
 
 @app.post("/api/convene/{session_id}")
-async def api_convene(session_id: str):
+async def api_convene(request: Request, session_id: str):
     """Run a full Council review cycle. Returns HTML fragment."""
+    user_id = await require_auth_api(request)
+    await _verify_session_owner(session_id, user_id)
+
     if session_id in _convene_locks:
         return HTMLResponse('<div class="convene-progress"><h3>Council already in session</h3><p class="dim">Please wait for the current review to finish.</p></div>')
     _convene_locks.add(session_id)
@@ -743,6 +822,9 @@ Question everything. Find what's missing, not just what's present. If code is in
 @app.post("/api/decide/{session_id}")
 async def api_decide(session_id: str, request: Request):
     """Accept/reject changes. Expects JSON {decisions: [{id, accepted, reason}]}."""
+    user_id = await require_auth_api(request)
+    await _verify_session_owner(session_id, user_id)
+
     session = await sm.get_session(session_id)
     if not session:
         raise HTTPException(404)

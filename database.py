@@ -92,6 +92,15 @@ CREATE TABLE IF NOT EXISTS attachments (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,
+    github_id INTEGER UNIQUE NOT NULL,
+    github_login TEXT NOT NULL,
+    display_name TEXT NOT NULL,
+    avatar_url TEXT DEFAULT '',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS github_repos (
     id TEXT PRIMARY KEY,
     session_id TEXT REFERENCES sessions(id),
@@ -112,9 +121,13 @@ async def init_db():
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     async with aiosqlite.connect(DB_PATH) as db:
         await db.executescript(SCHEMA)
-        # Idempotent migration for existing DBs
+        # Idempotent migrations for existing DBs
         try:
             await db.execute("ALTER TABLE github_repos ADD COLUMN chat_files_json TEXT")
+        except Exception:
+            pass  # Column already exists
+        try:
+            await db.execute("ALTER TABLE sessions ADD COLUMN user_id TEXT REFERENCES users(id)")
         except Exception:
             pass  # Column already exists
         await db.commit()

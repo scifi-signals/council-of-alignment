@@ -12,6 +12,12 @@ GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")
 XAI_API_KEY = os.getenv("XAI_API_KEY", "")
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
 
+# GitHub OAuth (user auth — separate from GITHUB_TOKEN which is for repo access)
+GITHUB_CLIENT_ID = os.getenv("GITHUB_CLIENT_ID", "")
+GITHUB_CLIENT_SECRET = os.getenv("GITHUB_CLIENT_SECRET", "")
+SESSION_SECRET = os.getenv("SESSION_SECRET", "change-me-in-production")
+BASE_URL = os.getenv("BASE_URL", "http://localhost:8890")
+
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
 MODELS = {

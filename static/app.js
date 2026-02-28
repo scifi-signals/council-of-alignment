@@ -57,6 +57,30 @@ function switchTab(tabId, clickedTab) {
 }
 
 
+// ─── User menu ───────────────────────────────────────────
+
+function toggleUserMenu() {
+    const dropdown = document.getElementById('user-dropdown');
+    if (dropdown) dropdown.classList.toggle('open');
+}
+
+document.addEventListener('click', function(e) {
+    const menu = document.getElementById('user-menu');
+    const dropdown = document.getElementById('user-dropdown');
+    if (menu && dropdown && !menu.contains(e.target)) {
+        dropdown.classList.remove('open');
+    }
+});
+
+// ─── Auth: redirect to login on 401 ─────────────────────
+
+document.body.addEventListener('htmx:responseError', function(e) {
+    if (e.detail.xhr && e.detail.xhr.status === 401) {
+        window.location.href = '/auth/login';
+    }
+});
+
+
 // ─── Council decisions ───────────────────────────────────
 
 const decisions = {};
@@ -133,8 +157,12 @@ function submitDecisions() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ decisions: decisionList })
     })
-    .then(r => r.text())
+    .then(r => {
+        if (r.status === 401) { window.location.href = '/auth/login'; return; }
+        return r.text();
+    })
     .then(html => {
+        if (!html) return;
         clearInterval(timerInterval);
 
         // Parse the response
