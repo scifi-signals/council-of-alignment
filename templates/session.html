@@ -13,7 +13,6 @@
             </span>
         </div>
         <div class="session-header-actions">
-            <a href="/api/export/{{ session.id }}" class="btn btn-secondary">Export</a>
         </div>
     </div>
 
@@ -213,6 +212,11 @@ When you're ready, hit **Convene the Council** for independent reviews from a pa
         <div class="chat-input-bar">
             <div class="chat-input-wrapper">
                 <div class="convene-row">
+                    {% if not has_api_key and free_convenes_remaining <= 0 %}
+                    <div class="free-tier-cta">
+                        <p>You've used all 3 free reviews. <a href="/settings">Add your OpenRouter API key</a> to keep reviewing.</p>
+                    </div>
+                    {% else %}
                     <button id="convene-btn" class="btn btn-convene" onclick="conveneCouncil()">
                         <span class="btn-orbs">
                             <span class="orb" style="background:var(--claude)"></span>
@@ -221,6 +225,11 @@ When you're ready, hit **Convene the Council** for independent reviews from a pa
                             <span class="orb" style="background:var(--grok)"></span>
                         </span> Convene the Council
                     </button>
+                    {% if not has_api_key and free_convenes_remaining > 0 %}
+                    <span class="free-tier-badge">{{ free_convenes_remaining }} free review{{ 's' if free_convenes_remaining != 1 else '' }} left</span>
+                    {% endif %}
+                    {% endif %}
+                    <a href="/api/export/{{ session.id }}" class="btn btn-export"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export the Results</a>
                 </div>
                 <form id="chat-form" onsubmit="return sendChat(event)">
                     <div class="chat-input-inner">

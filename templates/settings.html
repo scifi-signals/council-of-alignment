@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Settings — Council of Alignment{% endblock %}
+
+{% block content %}
+<div style="max-width: 640px; margin: 0 auto; padding: var(--space-4) var(--space-3);">
+    <h1 style="font-family: var(--font-heading); margin-bottom: var(--space-4);">Settings</h1>
+
+    <!-- API Key Section -->
+    <div class="settings-section">
+        <h3>Your API Key</h3>
+        <p class="dim" style="margin-bottom: var(--space-2); font-size: 14px;">
+            Connect your own OpenRouter API key so your Council reviews run on your account.
+        </p>
+        <div id="key-section">
+            {% if user.has_api_key %}
+            <div class="key-status key-set">
+                <div class="key-masked"><span class="dim">Key:</span> <code>sk-or-...****</code></div>
+                <p class="key-status-text" style="color: var(--green);">Key is active. All reviews use your key.</p>
+                <form hx-post="/api/settings/api-key/delete" hx-target="#key-section" hx-swap="innerHTML" style="margin-top: 12px;">
+                    <button type="submit" class="btn btn-secondary">Remove Key</button>
+                </form>
+            </div>
+            {% else %}
+            <div class="key-status key-unset">
+                <form hx-post="/api/settings/api-key" hx-target="#key-section" hx-swap="innerHTML" hx-encoding="application/x-www-form-urlencoded">
+                    <div class="key-input-row">
+                        <input type="password" name="api_key" placeholder="sk-or-..." class="key-input" required>
+                        <button type="submit" class="btn btn-primary">Save Key</button>
+                    </div>
+                </form>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Free Reviews Section -->
+    <div class="settings-section">
+        <h3>Free Reviews</h3>
+        <div class="free-tier-status">
+            <div class="free-tier-dots">
+                {% for i in range(3) %}
+                <span class="free-tier-dot {% if i < (3 - user.free_convenes_remaining) %}used{% endif %}"></span>
+                {% endfor %}
+            </div>
+            <p>
+                {% if user.has_api_key %}
+                    You have your own API key, so reviews are unlimited.
+                {% elif user.free_convenes_remaining > 0 %}
+                    You have <strong>{{ user.free_convenes_remaining }}</strong> of 3 free reviews remaining.
+                {% else %}
+                    You've used all 3 free reviews. Add your API key above to continue.
+                {% endif %}
+            </p>
+        </div>
+        <p class="dim" style="font-size: 13px; margin-top: var(--space-1);">
+            Each Council review calls 4+ AI models, which costs $1-5 in API credits. Free reviews use the server's credits.
+            Once you add your own key, reviews are unlimited and billed to your OpenRouter account.
+        </p>
+    </div>
+
+    <!-- What is OpenRouter Section -->
+    <div class="settings-section">
+        <h3>What is OpenRouter?</h3>
+        <p style="font-size: 14px; line-height: 1.7; color: var(--text-secondary);">
+            <a href="https://openrouter.ai" target="_blank" rel="noopener" style="color: var(--accent); font-weight: 500;">OpenRouter</a>
+            lets you access multiple AI models (Claude, GPT, Gemini, Grok) with one account and one API key.
+            Sign up is free — you only pay for what you use, with prepaid credits so there are no surprise bills.
+        </p>
+        <p style="font-size: 14px; line-height: 1.7; color: var(--text-secondary); margin-top: var(--space-1);">
+            After signing up, go to <strong>Keys</strong> in your OpenRouter dashboard to create an API key, then paste it above.
+        </p>
+    </div>
+</div>
+{% endblock %}

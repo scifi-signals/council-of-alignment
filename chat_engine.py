@@ -364,7 +364,7 @@ class ChatEngine:
         self.dispatcher = dispatcher
         self.github_ctx = github_ctx or GitHubContextProvider()
 
-    async def send_message(self, session_id: str, user_message: str) -> dict:
+    async def send_message(self, session_id: str, user_message: str, api_key_override: str = None) -> dict:
         """Send user message to Lead AI, get response. Maintains full history in DB.
 
         Returns dict with:
@@ -450,7 +450,7 @@ class ChatEngine:
                     }
 
             # Call Lead AI
-            result = await self.dispatcher.chat(lead_model, messages, system=system)
+            result = await self.dispatcher.chat(lead_model, messages, system=system, api_key_override=api_key_override)
             response = result["content"]
 
             # Save assistant response
@@ -467,7 +467,8 @@ class ChatEngine:
             if has_code_context and is_first_message:
                 initial_response = response
                 verified_response = await self._verify_analysis(
-                    session_id, lead_model, title, system, db
+                    session_id, lead_model, title, system, db,
+                    api_key_override=api_key_override,
                 )
                 return {
                     "response": verified_response,
@@ -480,7 +481,8 @@ class ChatEngine:
             await db.close()
 
     async def _verify_analysis(
-        self, session_id: str, lead_model: str, title: str, system: str, db
+        self, session_id: str, lead_model: str, title: str, system: str, db,
+        api_key_override: str = None,
     ) -> str:
         """Send verification challenge and return the verified analysis."""
         # Save the verification prompt as a user message
@@ -500,7 +502,7 @@ class ChatEngine:
         messages = [{"role": r["role"], "content": r["content"]} for r in rows]
 
         # Call Lead AI again with full context
-        result = await self.dispatcher.chat(lead_model, messages, system=system)
+        result = await self.dispatcher.chat(lead_model, messages, system=system, api_key_override=api_key_override)
         verified = result["content"]
 
         # Save verified response
@@ -622,7 +624,7 @@ class ChatEngine:
         finally:
             await db.close()
 
-    async def inject_synthesis(self, session_id: str, synthesis: dict, accepted_changes: list, rejected_changes: list) -> str:
+    async def inject_synthesis(self, session_id: str, synthesis: dict, accepted_changes: list, rejected_changes: list, api_key_override: str = None) -> str:
         """Feed full synthesis results back to Lead AI and continue conversation."""
         accepted_text = "\n".join(
             f"- [{c.get('category', 'general')}] {c['description']} (from {', '.join(c.get('source_reviewers', []))})"
@@ -685,9 +687,9 @@ class ChatEngine:
             await db.close()
 
         # Get Lead's response to the injected synthesis
-        return await self._get_lead_response(session_id)
+        return await self._get_lead_response(session_id, api_key_override=api_key_override)
 
-    async def _get_lead_response(self, session_id: str) -> str:
+    async def _get_lead_response(self, session_id: str, api_key_override: str = None) -> str:
         """Get Lead AI response to the current message history (no new user message)."""
         db = await get_db()
         try:
@@ -707,7 +709,7 @@ class ChatEngine:
                 model_name=MODELS[lead_model]["name"],
                 title=title,
             )
-            result = await self.dispatcher.chat(lead_model, messages, system=system)
+            result = await self.dispatcher.chat(lead_model, messages, system=system, api_key_override=api_key_override)
             response = result["content"]
 
             # Save response

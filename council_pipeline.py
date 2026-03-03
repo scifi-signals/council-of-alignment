@@ -38,6 +38,7 @@ async def run_council_review(
     dispatcher,
     tracker,
     github_ctx,
+    api_key_override: str = None,
 ) -> dict:
     """Run a full Council review cycle.
 
@@ -164,7 +165,8 @@ Question everything. Find what's missing, not just what's present. If code is in
     )
     try:
         gap_result = await dispatcher.chat(
-            lead, [{"role": "user", "content": briefing}], system=gap_scan_prompt
+            lead, [{"role": "user", "content": briefing}], system=gap_scan_prompt,
+            api_key_override=api_key_override,
         )
         gap_content = gap_result.get("content", "").strip()
         if gap_content and "no significant gaps" not in gap_content.lower():
@@ -303,7 +305,7 @@ Question everything. Find what's missing, not just what's present. If code is in
         "- Strategy: Is this viable? Who's the competition? What's the biggest adoption risk?\n"
         "- Devil's Advocate: What assumptions might be false? Why might this fail entirely?"
     )
-    reviews = await dispatcher.dispatch_to_council(council, council_system, briefing)
+    reviews = await dispatcher.dispatch_to_council(council, council_system, briefing, api_key_override=api_key_override)
 
     # Save reviews
     for model_key, review_data in reviews.items():
@@ -318,7 +320,8 @@ Question everything. Find what's missing, not just what's present. If code is in
     # ── Step 3: Synthesize ────────────────────────────────────
     reviewer_stats = await tracker.get_stats_for_synthesis(council)
     synthesis = await synthesize_reviews(
-        dispatcher, lead, raw_conversation, reviews, changelog, reviewer_stats
+        dispatcher, lead, raw_conversation, reviews, changelog, reviewer_stats,
+        api_key_override=api_key_override,
     )
     await sm.save_synthesis(round_id, synthesis)
 

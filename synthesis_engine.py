@@ -109,6 +109,7 @@ async def synthesize_reviews(
     reviews: dict[str, dict],
     previous_changelog: list[dict] = None,
     reviewer_stats: dict = None,
+    api_key_override: str = None,
 ) -> dict:
     """Lead reads all reviews and produces structured synthesis."""
     # Format reviews
@@ -157,7 +158,7 @@ async def synthesize_reviews(
 
     # Try up to 3 times to get valid JSON
     for attempt in range(3):
-        result = await dispatcher.chat(lead_model, messages, system=system)
+        result = await dispatcher.chat(lead_model, messages, system=system, api_key_override=api_key_override)
         content = result["content"]
         parsed = _parse_json(content)
         if parsed:

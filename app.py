@@ -9,6 +9,7 @@ import logging
 import zipfile
 from contextlib import asynccontextmanager
 
+import httpx
 from fastapi import FastAPI, Request, Form, HTTPException, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -63,7 +64,8 @@ from api_v1 import router as api_v1_router
 from auth import (
     github_login_url, exchange_code_for_token, fetch_github_user,
     get_or_create_user, get_current_user, require_auth, require_auth_api,
-    generate_state,
+    generate_state, get_user_api_key, set_user_api_key, delete_user_api_key,
+    increment_free_convenes, get_free_convenes_remaining,
 )
 
 
@@ -253,6 +255,10 @@ async def session_page(request: Request, session_id: str):
         # Owner if: session has no user_id (legacy) or user_id matches
         is_owner = not session.get("user_id") or session["user_id"] == user["id"]
 
+    # Free tier info for BYOK UX
+    free_convenes_remaining = user.get("free_convenes_remaining", 3) if user else 0
+    has_api_key = user.get("has_api_key", False) if user else False
+
     return templates.TemplateResponse("session.html", await _ctx(
         request,
         session=session,
@@ -271,6 +277,8 @@ async def session_page(request: Request, session_id: str):
         round_roman=_to_roman(round_number - 1) if round_number > 1 else "",
         review_completed_at=review_completed_at,
         is_owner=is_owner,
+        free_convenes_remaining=free_convenes_remaining,
+        has_api_key=has_api_key,
     ))
 
 
@@ -606,6 +614,9 @@ async def api_chat(session_id: str, request: Request):
     lead_name = MODELS[lead]["name"]
     lead_color = MODELS[lead]["color"]
 
+    # Load user's BYOK key (if set, all API calls route through it)
+    user_key = await get_user_api_key(user_id)
+
     # Always show the user message immediately
     user_html = f"""
     <div class="message user-message">
@@ -615,7 +626,7 @@ async def api_chat(session_id: str, request: Request):
     """
 
     try:
-        result = await engine.send_message(session_id, message)
+        result = await engine.send_message(session_id, message, api_key_override=user_key)
 
         if result.get("verified"):
             # Show initial analysis (collapsed) + verification challenge + verified result
@@ -667,10 +678,30 @@ async def api_convene(request: Request, session_id: str):
         release_lock(session_id)
         raise HTTPException(404)
 
+    # BYOK gating: check if user has their own key or free convenes remaining
+    user_key = await get_user_api_key(user_id)
+    if not user_key:
+        remaining = await get_free_convenes_remaining(user_id)
+        if remaining <= 0:
+            release_lock(session_id)
+            return HTMLResponse(
+                '<div class="convene-progress">'
+                '<h3>Free reviews used up</h3>'
+                '<p>You\'ve used all 3 free Council reviews.</p>'
+                '<p>Add your own <a href="/settings" style="color: var(--accent); font-weight: 600;">OpenRouter API key</a> to keep reviewing.</p>'
+                '<p class="dim" style="margin-top: 12px;">OpenRouter lets you access multiple AI models with one key. Sign up free at openrouter.ai.</p>'
+                '</div>'
+            )
+
     try:
         result = await run_council_review(
-            session_id, session, sm, dispatcher, tracker, github_ctx
+            session_id, session, sm, dispatcher, tracker, github_ctx,
+            api_key_override=user_key,
         )
+
+        # If using server key (no BYOK), increment the free convene counter
+        if not user_key:
+            await increment_free_convenes(user_id)
 
         # Reconstruct full review data for HTML (pipeline returns content-only)
         reviews_for_html = {k: {"content": v["content"]} for k, v in result["reviews"].items()}
@@ -725,8 +756,9 @@ async def api_decide(session_id: str, request: Request):
     # Inject synthesis into Lead conversation
     response_text = ""
     if accepted:
+        user_key = await get_user_api_key(user_id)
         engine = get_engine()
-        response_text = await engine.inject_synthesis(session_id, synthesis, accepted, rejected)
+        response_text = await engine.inject_synthesis(session_id, synthesis, accepted, rejected, api_key_override=user_key)
 
     lead = session["lead_model"]
     lead_name = MODELS[lead]["name"]
@@ -808,6 +840,78 @@ async def api_timeline(request: Request, session_id: str):
         raise HTTPException(404, "Session not found")
     data = await sm.get_timeline_data(session_id)
     return JSONResponse({"rounds": data})
+
+
+# ─── Settings / BYOK routes ──────────────────────────────────
+
+@app.get("/settings", response_class=HTMLResponse)
+async def settings_page(request: Request):
+    """Render the settings page."""
+    user = await get_current_user(request)
+    if not user:
+        request.session["oauth_next"] = "/settings"
+        return RedirectResponse("/auth/login", status_code=302)
+    return templates.TemplateResponse("settings.html", await _ctx(request))
+
+
+@app.post("/api/settings/api-key")
+@limiter.limit("10/minute")
+async def api_set_key(request: Request):
+    """Validate and store the user's OpenRouter API key."""
+    user_id = await require_auth_api(request)
+    form = await request.form()
+    api_key = form.get("api_key", "").strip()
+    if not api_key:
+        return HTMLResponse('<div class="settings-error">Please enter an API key.</div>', status_code=400)
+
+    # Validate the key by hitting OpenRouter's models endpoint
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(
+                "https://openrouter.ai/api/v1/models",
+                headers={"Authorization": f"Bearer {api_key}"},
+            )
+            if resp.status_code in (401, 403):
+                return HTMLResponse('<div class="settings-error">Invalid API key. Please check and try again.</div>', status_code=400)
+            if resp.status_code != 200:
+                return HTMLResponse('<div class="settings-error">Could not validate key. Please try again.</div>', status_code=400)
+    except Exception:
+        return HTMLResponse('<div class="settings-error">Could not reach OpenRouter. Please try again.</div>', status_code=400)
+
+    await set_user_api_key(user_id, api_key)
+
+    # Return the "key is set" UI fragment
+    masked = api_key[:6] + "..." + api_key[-4:]
+    html = f'''
+    <div class="key-status key-set">
+        <div class="key-masked"><span class="dim">Key:</span> <code>{_escape(masked)}</code></div>
+        <p class="key-status-text" style="color: var(--green);">Key saved and validated.</p>
+        <form hx-post="/api/settings/api-key/delete" hx-target="#key-section" hx-swap="innerHTML" style="margin-top: 12px;">
+            <button type="submit" class="btn btn-secondary">Remove Key</button>
+        </form>
+    </div>
+    '''
+    return HTMLResponse(html)
+
+
+@app.post("/api/settings/api-key/delete")
+async def api_delete_key(request: Request):
+    """Remove the user's stored API key."""
+    user_id = await require_auth_api(request)
+    await delete_user_api_key(user_id)
+
+    html = '''
+    <div class="key-status key-unset">
+        <form hx-post="/api/settings/api-key" hx-target="#key-section" hx-swap="innerHTML" hx-encoding="application/x-www-form-urlencoded">
+            <div class="key-input-row">
+                <input type="password" name="api_key" placeholder="sk-or-..." class="key-input" required>
+                <button type="submit" class="btn btn-primary">Save Key</button>
+            </div>
+        </form>
+        <p class="dim" style="margin-top: 8px; font-size: 13px;">Key removed. Add a new one to resume reviewing.</p>
+    </div>
+    '''
+    return HTMLResponse(html)
 
 
 # ─── Helpers ─────────────────────────────────────────────────

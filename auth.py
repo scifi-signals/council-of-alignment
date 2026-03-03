@@ -4,12 +4,101 @@ import uuid
 import secrets
 
 import httpx
+from cryptography.fernet import Fernet, InvalidToken
 from fastapi import Request
 from fastapi.responses import RedirectResponse
 from starlette.exceptions import HTTPException
 
-from config import GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, BASE_URL
+from config import GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, BASE_URL, ENCRYPTION_KEY, FREE_CONVENE_LIMIT
 from database import get_db
+
+# ─── BYOK key encryption helpers ────────────────────────────
+
+_fernet = Fernet(ENCRYPTION_KEY.encode())
+
+
+def encrypt_key(plaintext: str) -> str:
+    """Encrypt an API key for storage."""
+    return _fernet.encrypt(plaintext.encode()).decode()
+
+
+def decrypt_key(ciphertext: str) -> str:
+    """Decrypt a stored API key."""
+    return _fernet.decrypt(ciphertext.encode()).decode()
+
+
+async def get_user_api_key(user_id: str) -> str | None:
+    """Fetch and decrypt the user's OpenRouter API key. Returns None if not set."""
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "SELECT openrouter_key_encrypted FROM users WHERE id = ?", (user_id,)
+        )
+        row = await cursor.fetchone()
+        if not row or not row["openrouter_key_encrypted"]:
+            return None
+        try:
+            return decrypt_key(row["openrouter_key_encrypted"])
+        except InvalidToken:
+            return None
+    finally:
+        await db.close()
+
+
+async def set_user_api_key(user_id: str, api_key: str) -> None:
+    """Encrypt and store the user's OpenRouter API key."""
+    encrypted = encrypt_key(api_key)
+    db = await get_db()
+    try:
+        await db.execute(
+            "UPDATE users SET openrouter_key_encrypted = ? WHERE id = ?",
+            (encrypted, user_id),
+        )
+        await db.commit()
+    finally:
+        await db.close()
+
+
+async def delete_user_api_key(user_id: str) -> None:
+    """Remove the user's stored API key."""
+    db = await get_db()
+    try:
+        await db.execute(
+            "UPDATE users SET openrouter_key_encrypted = NULL WHERE id = ?",
+            (user_id,),
+        )
+        await db.commit()
+    finally:
+        await db.close()
+
+
+async def increment_free_convenes(user_id: str) -> None:
+    """Increment the user's free convene counter."""
+    db = await get_db()
+    try:
+        await db.execute(
+            "UPDATE users SET free_convenes_used = free_convenes_used + 1 WHERE id = ?",
+            (user_id,),
+        )
+        await db.commit()
+    finally:
+        await db.close()
+
+
+async def get_free_convenes_remaining(user_id: str) -> int:
+    """Return how many free convenes the user has left."""
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "SELECT free_convenes_used FROM users WHERE id = ?", (user_id,)
+        )
+        row = await cursor.fetchone()
+        if not row:
+            return 0
+        used = row["free_convenes_used"] or 0
+        return max(0, FREE_CONVENE_LIMIT - used)
+    finally:
+        await db.close()
 
 
 def github_login_url(state: str) -> str:
@@ -108,12 +197,16 @@ async def get_user_by_id(user_id: str) -> dict | None:
         row = await cursor.fetchone()
         if not row:
             return None
+        used = row["free_convenes_used"] or 0 if "free_convenes_used" in row.keys() else 0
         return {
             "id": row["id"],
             "github_id": row["github_id"],
             "github_login": row["github_login"],
             "display_name": row["display_name"],
             "avatar_url": row["avatar_url"],
+            "free_convenes_used": used,
+            "free_convenes_remaining": max(0, FREE_CONVENE_LIMIT - used),
+            "has_api_key": bool(row["openrouter_key_encrypted"] if "openrouter_key_encrypted" in row.keys() else None),
         }
     finally:
         await db.close()

@@ -23,6 +23,14 @@ if not SESSION_SECRET:
     warnings.warn("SESSION_SECRET not set — using random value (sessions won't survive restart)")
 BASE_URL = os.getenv("BASE_URL", "http://localhost:8890")
 
+# BYOK encryption key for storing user API keys at rest (Fernet symmetric encryption)
+ENCRYPTION_KEY = os.getenv("ENCRYPTION_KEY", "")
+if not ENCRYPTION_KEY:
+    raise RuntimeError("ENCRYPTION_KEY not set. Generate one with: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\"")
+
+# Free tier: how many convenes a user gets before needing their own API key
+FREE_CONVENE_LIMIT = 3
+
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
 MODELS = {

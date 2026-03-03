@@ -20,21 +20,22 @@ class ModelDispatcher:
         self.total_tokens_out = 0
         self.total_cost = 0.0
 
-    async def chat(self, model_key: str, messages: list[dict], system: str = None) -> dict:
+    async def chat(self, model_key: str, messages: list[dict], system: str = None, api_key_override: str = None) -> dict:
         """Send messages to a model. Returns {"content": str, "tokens_in": int, "tokens_out": int, "cost": float}."""
-        if use_openrouter():
+        if api_key_override or use_openrouter():
             try:
-                return await self._chat_openrouter(model_key, messages, system)
+                return await self._chat_openrouter(model_key, messages, system, api_key_override=api_key_override)
             except RuntimeError as e:
                 if "402" in str(e) or "credits" in str(e).lower():
-                    # OpenRouter credits exhausted — fall back to direct API
+                    if api_key_override:
+                        raise  # Don't fall back when using user's own key
                     import logging
                     logging.getLogger(__name__).warning("OpenRouter credits low, falling back to direct API for %s", model_key)
                     return await self._chat_direct(model_key, messages, system)
                 raise
         return await self._chat_direct(model_key, messages, system)
 
-    async def _chat_openrouter(self, model_key: str, messages: list[dict], system: str = None) -> dict:
+    async def _chat_openrouter(self, model_key: str, messages: list[dict], system: str = None, api_key_override: str = None) -> dict:
         """Route through OpenRouter (OpenAI-compatible)."""
         model_id = MODELS[model_key]["id"]
         payload = {"model": model_id, "messages": []}
@@ -46,7 +47,7 @@ class ModelDispatcher:
             resp = await client.post(
                 f"{OPENROUTER_BASE_URL}/chat/completions",
                 headers={
-                    "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                    "Authorization": f"Bearer {api_key_override or OPENROUTER_API_KEY}",
                     "Content-Type": "application/json",
                 },
                 json=payload,
@@ -135,6 +136,7 @@ class ModelDispatcher:
         council_models: list[str],
         system_prompt: str,
         briefing: str,
+        api_key_override: str = None,
     ) -> dict[str, dict]:
         """Send briefing to all Council members in parallel.
         Returns {model_key: {"content": str, "tokens_in": int, "tokens_out": int, "cost": float}}
@@ -143,7 +145,7 @@ class ModelDispatcher:
 
         async def _call(model_key: str) -> tuple[str, dict]:
             try:
-                result = await self.chat(model_key, messages, system=system_prompt)
+                result = await self.chat(model_key, messages, system=system_prompt, api_key_override=api_key_override)
                 return model_key, result
             except Exception as e:
                 return model_key, {"content": f"[Error from {MODELS[model_key]['name']}: {e}]", "tokens_in": 0, "tokens_out": 0, "cost": 0}
