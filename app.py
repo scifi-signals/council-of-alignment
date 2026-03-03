@@ -21,6 +21,32 @@ from slowapi.errors import RateLimitExceeded
 
 logger = logging.getLogger(__name__)
 
+# ─── Document text extraction ─────────────────────────────
+BINARY_EXTRACTORS = {}  # ext -> callable(bytes) -> str
+
+try:
+    import docx
+    def _extract_docx(data: bytes) -> str:
+        doc = docx.Document(io.BytesIO(data))
+        return "\n\n".join(p.text for p in doc.paragraphs if p.text.strip())
+    BINARY_EXTRACTORS[".docx"] = _extract_docx
+except ImportError:
+    logger.warning("python-docx not installed — .docx uploads disabled")
+
+try:
+    from PyPDF2 import PdfReader
+    def _extract_pdf(data: bytes) -> str:
+        reader = PdfReader(io.BytesIO(data))
+        pages = []
+        for page in reader.pages:
+            text = page.extract_text()
+            if text and text.strip():
+                pages.append(text)
+        return "\n\n".join(pages)
+    BINARY_EXTRACTORS[".pdf"] = _extract_pdf
+except ImportError:
+    logger.warning("PyPDF2 not installed — .pdf uploads disabled")
+
 from config import MODELS, get_council_models, GITHUB_TOKEN, SESSION_SECRET, GITHUB_CLIENT_ID
 from database import init_db, get_db
 from dispatcher import ModelDispatcher
@@ -319,11 +345,12 @@ async def api_upload(request: Request, session_id: str, file: UploadFile = File(
     user_id = await require_auth_api(request)
     await _verify_session_owner(session_id, user_id)
 
-    ALLOWED_EXT = {
+    TEXT_EXT = {
         ".py", ".js", ".ts", ".jsx", ".tsx", ".json", ".md", ".txt", ".html", ".css",
         ".yaml", ".yml", ".toml", ".csv", ".xml", ".cfg", ".ini", ".sh", ".sql",
         ".env.example", ".gitignore", ".dockerfile", ".rst", ".r", ".go", ".rs",
     }
+    ALLOWED_EXT = TEXT_EXT | set(BINARY_EXTRACTORS.keys())
     SKIP_DIRS = {"__pycache__", "node_modules", ".git", "venv", ".venv", ".tox", ".mypy_cache", "dist", "build"}
     MAX_FILE_SIZE = 500_000  # 500KB per file
 
@@ -366,7 +393,11 @@ async def api_upload(request: Request, session_id: str, file: UploadFile = File(
                 continue
             # Read content
             try:
-                content = zf.read(info.filename).decode("utf-8", errors="replace")
+                raw = zf.read(info.filename)
+                if ext in BINARY_EXTRACTORS:
+                    content = BINARY_EXTRACTORS[ext](raw)
+                else:
+                    content = raw.decode("utf-8", errors="replace")
             except Exception:
                 continue
 
@@ -381,6 +412,52 @@ async def api_upload(request: Request, session_id: str, file: UploadFile = File(
     finally:
         await db.close()
 
+    return HTMLResponse(_build_attachments_html(added, session_id, full_list=True))
+
+
+@app.post("/api/upload-file/{session_id}")
+@limiter.limit("10/minute")
+async def api_upload_file(request: Request, session_id: str, file: UploadFile = File(...)):
+    """Upload a single file (text or document) as a session attachment."""
+    user_id = await require_auth_api(request)
+    await _verify_session_owner(session_id, user_id)
+
+    fname = file.filename or "unnamed"
+    ext = "." + fname.rsplit(".", 1)[-1].lower() if "." in fname else ""
+
+    TEXT_EXT = {
+        ".py", ".js", ".ts", ".jsx", ".tsx", ".json", ".md", ".txt", ".html", ".css",
+        ".yaml", ".yml", ".toml", ".csv", ".xml", ".cfg", ".ini", ".sh", ".sql",
+        ".rst", ".r", ".go", ".rs",
+    }
+    allowed = TEXT_EXT | set(BINARY_EXTRACTORS.keys())
+    if ext not in allowed:
+        return HTMLResponse(f'<div class="attachment-error">Unsupported file type: {ext}</div>', status_code=400)
+
+    data = await file.read()
+    if len(data) > 500_000:
+        return HTMLResponse('<div class="attachment-error">File too large (max 500KB).</div>', status_code=400)
+
+    try:
+        if ext in BINARY_EXTRACTORS:
+            content = BINARY_EXTRACTORS[ext](data)
+        else:
+            content = data.decode("utf-8", errors="replace")
+    except Exception:
+        return HTMLResponse('<div class="attachment-error">Could not extract text from file.</div>', status_code=400)
+
+    att_id = str(uuid.uuid4())[:8]
+    db = await get_db()
+    try:
+        await db.execute(
+            "INSERT INTO attachments (id, session_id, filename, content, size_bytes) VALUES (?, ?, ?, ?, ?)",
+            (att_id, session_id, fname, content, len(data)),
+        )
+        await db.commit()
+    finally:
+        await db.close()
+
+    added = [{"id": att_id, "filename": fname, "size_bytes": len(data)}]
     return HTMLResponse(_build_attachments_html(added, session_id, full_list=True))
 
 

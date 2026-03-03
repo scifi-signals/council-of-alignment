@@ -182,7 +182,7 @@
                         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
                         Attach file to chat
                     </label>
-                    <input type="file" id="file-input" style="display: none" accept=".md,.txt,.json,.py,.js,.html,.css,.yaml,.yml,.toml,.csv,.xml,.pdf" multiple>
+                    <input type="file" id="file-input" style="display: none" accept=".md,.txt,.json,.py,.js,.html,.css,.yaml,.yml,.toml,.csv,.xml,.pdf,.docx" multiple>
                     <span class="file-upload-name" id="file-name"></span>
                     <span class="upload-separator">|</span>
                     <label class="file-upload-btn upload-zip-btn" for="zip-input">
@@ -432,18 +432,51 @@ async function sendChat(e) {
     const textarea = document.getElementById('chat-textarea');
     let message = textarea.value.trim();
 
-    // If files are attached, read all and prepend to message
+    // If files are attached, handle text files inline and binary files via server upload
     if (attachedFiles.length > 0) {
+        const BINARY_EXT = new Set(['.pdf', '.docx']);
+        const textFiles = [];
+        const binaryFiles = [];
+        for (const file of attachedFiles) {
+            const ext = '.' + file.name.split('.').pop().toLowerCase();
+            if (BINARY_EXT.has(ext)) {
+                binaryFiles.push(file);
+            } else {
+                textFiles.push(file);
+            }
+        }
+
+        // Upload binary files server-side for text extraction
+        for (const file of binaryFiles) {
+            try {
+                const fd = new FormData();
+                fd.append('file', file);
+                const resp = await fetch(`/api/upload-file/${SESSION_ID}`, { method: 'POST', body: fd });
+                if (resp.status === 401) { window.location.href = '/auth/login'; return; }
+                if (resp.ok) {
+                    // Refresh attachments display
+                    const area = document.getElementById('attachments-area');
+                    if (area) area.innerHTML = await resp.text();
+                }
+            } catch (err) {
+                console.error('Failed to upload ' + file.name + ':', err);
+            }
+        }
+
+        // Read text files inline as before
         try {
             let filesHeader = '';
-            for (const file of attachedFiles) {
+            for (const file of textFiles) {
                 const content = await file.text();
                 filesHeader += `[Attached file: ${file.name}]\n\n${content}\n\n---\n\n`;
             }
-            const defaultMsg = attachedFiles.length === 1
-                ? `Please review the attached file: ${attachedFiles[0].name}`
-                : `Please review these ${attachedFiles.length} attached files.`;
-            message = filesHeader + (message || defaultMsg);
+            if (filesHeader || binaryFiles.length > 0) {
+                const allNames = attachedFiles.map(f => f.name);
+                const defaultMsg = allNames.length === 1
+                    ? `Please review the attached file: ${allNames[0]}`
+                    : `Please review these ${allNames.length} attached files.`;
+                message = filesHeader + (message || defaultMsg);
+            }
             removeAllFiles();
         } catch (err) {
             console.error('Failed to read files:', err);
