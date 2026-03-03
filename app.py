@@ -15,6 +15,11 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.responses import Response
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+
+logger = logging.getLogger(__name__)
 
 from config import MODELS, get_council_models, GITHUB_TOKEN, SESSION_SECRET, GITHUB_CLIENT_ID
 from database import init_db, get_db
@@ -42,7 +47,26 @@ async def lifespan(app: FastAPI):
     yield
 
 app = FastAPI(title="Council of Alignment", lifespan=lifespan, docs_url=None, redoc_url=None)
-app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET, max_age=30 * 24 * 60 * 60)
+app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET, max_age=30 * 24 * 60 * 60, same_site="lax")
+
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+
+
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
+    return JSONResponse({"error": "Rate limit exceeded"}, status_code=429)
+
+MAX_REQUEST_BODY = 10 * 1024 * 1024  # 10MB
+
+
+@app.middleware("http")
+async def limit_request_size(request: Request, call_next):
+    content_length = request.headers.get("content-length")
+    if content_length and int(content_length) > MAX_REQUEST_BODY:
+        return JSONResponse({"error": "Request too large"}, status_code=413)
+    return await call_next(request)
+
 
 BASE_DIR = os.path.dirname(__file__)
 app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
@@ -99,6 +123,7 @@ async def new_session_page(request: Request):
 
 
 @app.post("/new")
+@limiter.limit("10/minute")
 async def create_session(
     request: Request,
     title: str = Form(...),
@@ -111,6 +136,10 @@ async def create_session(
 
 @app.get("/session/{session_id}", response_class=HTMLResponse)
 async def session_page(request: Request, session_id: str):
+    user = await get_current_user(request)
+    if not user:
+        request.session["oauth_next"] = f"/session/{session_id}"
+        return RedirectResponse("/auth/login", status_code=302)
     session = await sm.get_session(session_id)
     if not session:
         raise HTTPException(404, "Session not found")
@@ -228,6 +257,7 @@ async def stats_page(request: Request):
 # ─── Auth routes ─────────────────────────────────────────────
 
 @app.get("/auth/login")
+@limiter.limit("10/minute")
 async def auth_login(request: Request):
     """Redirect to GitHub OAuth."""
     if not GITHUB_CLIENT_ID:
@@ -283,6 +313,7 @@ async def api_delete_session(request: Request, session_id: str):
 
 
 @app.post("/api/upload/{session_id}")
+@limiter.limit("10/minute")
 async def api_upload(request: Request, session_id: str, file: UploadFile = File(...)):
     """Upload a zip file and extract text files as session attachments."""
     user_id = await require_auth_api(request)
@@ -296,18 +327,31 @@ async def api_upload(request: Request, session_id: str, file: UploadFile = File(
     SKIP_DIRS = {"__pycache__", "node_modules", ".git", "venv", ".venv", ".tox", ".mypy_cache", "dist", "build"}
     MAX_FILE_SIZE = 500_000  # 500KB per file
 
+    MAX_ZIP_SIZE = 50 * 1024 * 1024  # 50MB compressed
+    MAX_ZIP_FILES = 200
+
     data = await file.read()
+    if len(data) > MAX_ZIP_SIZE:
+        return HTMLResponse('<div class="attachment-error">Zip file too large (max 50MB).</div>', status_code=400)
     try:
         zf = zipfile.ZipFile(io.BytesIO(data))
     except zipfile.BadZipFile:
         return HTMLResponse('<div class="attachment-error">Not a valid zip file.</div>', status_code=400)
 
+    # Check for zip bomb (total uncompressed > 500MB or excessive file count)
+    total_uncompressed = sum(i.file_size for i in zf.infolist())
+    if total_uncompressed > 500 * 1024 * 1024:
+        return HTMLResponse('<div class="attachment-error">Zip contents too large.</div>', status_code=400)
+
     db = await get_db()
     added = []
+    file_count = 0
     try:
         for info in zf.infolist():
             if info.is_dir():
                 continue
+            if file_count >= MAX_ZIP_FILES:
+                break
             # Skip large files
             if info.file_size > MAX_FILE_SIZE:
                 continue
@@ -332,6 +376,7 @@ async def api_upload(request: Request, session_id: str, file: UploadFile = File(
                 (att_id, session_id, info.filename, content, info.file_size),
             )
             added.append({"id": att_id, "filename": info.filename, "size_bytes": info.file_size})
+            file_count += 1
         await db.commit()
     finally:
         await db.close()
@@ -342,9 +387,14 @@ async def api_upload(request: Request, session_id: str, file: UploadFile = File(
 @app.delete("/api/attachment/{attachment_id}")
 async def api_delete_attachment(request: Request, attachment_id: str):
     """Delete a single attachment."""
-    await require_auth_api(request)
+    user_id = await require_auth_api(request)
     db = await get_db()
     try:
+        cursor = await db.execute("SELECT session_id FROM attachments WHERE id = ?", (attachment_id,))
+        row = await cursor.fetchone()
+        if not row:
+            raise HTTPException(404, "Attachment not found")
+        await _verify_session_owner(row["session_id"], user_id)
         await db.execute("DELETE FROM attachments WHERE id = ?", (attachment_id,))
         await db.commit()
     finally:
@@ -353,8 +403,9 @@ async def api_delete_attachment(request: Request, attachment_id: str):
 
 
 @app.get("/api/attachments/{session_id}")
-async def api_get_attachments(session_id: str):
+async def api_get_attachments(request: Request, session_id: str):
     """Return HTML fragment of current attachments."""
+    await require_auth_api(request)
     db = await get_db()
     try:
         cursor = await db.execute(
@@ -417,7 +468,8 @@ async def api_github_connect(session_id: str, request: Request):
     try:
         tree, branch = await github_ctx.fetch_repo_tree(parsed["owner"], parsed["repo"])
     except Exception as e:
-        return JSONResponse({"error": str(e)}, status_code=400)
+        logger.error(f"GitHub connect error for {parsed['owner']}/{parsed['repo']}: {e}")
+        return JSONResponse({"error": "Failed to fetch repository. Check the URL and try again."}, status_code=400)
 
     result = await sm.connect_github_repo(
         session_id, repo_url, parsed["owner"], parsed["repo"],
@@ -440,7 +492,8 @@ async def api_github_refresh(request: Request, session_id: str):
             repo_info["owner"], repo_info["repo_name"], repo_info["default_branch"]
         )
     except Exception as e:
-        return JSONResponse({"error": str(e)}, status_code=400)
+        logger.error(f"GitHub refresh error for {repo_info['owner']}/{repo_info['repo_name']}: {e}")
+        return JSONResponse({"error": "Failed to refresh repository."}, status_code=400)
 
     await sm.update_github_tree(session_id, json.dumps(tree))
     return JSONResponse({"file_count": len(tree), "owner": repo_info["owner"], "repo_name": repo_info["repo_name"]})
@@ -456,6 +509,7 @@ async def api_github_disconnect(request: Request, session_id: str):
 
 
 @app.post("/api/chat/{session_id}")
+@limiter.limit("20/minute")
 async def api_chat(session_id: str, request: Request):
     """Send a message to the Lead AI. Returns HTML fragment for HTMX."""
     user_id = await require_auth_api(request)
@@ -510,10 +564,11 @@ async def api_chat(session_id: str, request: Request):
             </div>
             """
     except Exception as e:
-        html = user_html + f"""
+        logger.error(f"Chat error for session {session_id}: {e}")
+        html = user_html + """
         <div class="message error-message">
             <div class="message-sender" style="color: #EF4444">Error</div>
-            <div class="message-content">{_escape(str(e))}</div>
+            <div class="message-content">Something went wrong. Please try again.</div>
         </div>
         """
 
@@ -521,6 +576,7 @@ async def api_chat(session_id: str, request: Request):
 
 
 @app.post("/api/convene/{session_id}")
+@limiter.limit("3/minute")
 async def api_convene(request: Request, session_id: str):
     """Run a full Council review cycle. Returns HTML fragment."""
     user_id = await require_auth_api(request)
@@ -635,11 +691,13 @@ async def api_decide(session_id: str, request: Request):
 
 
 @app.get("/api/export/{session_id}")
-async def api_export(session_id: str):
+async def api_export(request: Request, session_id: str):
     """Export design files as a download."""
+    user_id = await require_auth_api(request)
     session = await sm.get_session(session_id)
     if not session:
         raise HTTPException(404)
+    await _verify_session_owner(session_id, user_id)
 
     latest = await sm.get_latest_version(session_id)
     changelog = await sm.get_changelog(session_id)
@@ -658,14 +716,16 @@ async def api_export(session_id: str):
 
 
 @app.get("/api/cost")
-async def api_cost():
+async def api_cost(request: Request):
     """Get current cost summary."""
+    await require_auth_api(request)
     return JSONResponse({"summary": dispatcher.get_cost_summary()})
 
 
 @app.get("/api/timeline/{session_id}")
-async def api_timeline(session_id: str):
+async def api_timeline(request: Request, session_id: str):
     """Get evolution timeline data for a session."""
+    await require_auth_api(request)
     session = await sm.get_session(session_id)
     if not session:
         raise HTTPException(404, "Session not found")
@@ -896,4 +956,4 @@ def _to_roman(n: int) -> str:
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("app:app", host="0.0.0.0", port=8890, reload=True)
+    uvicorn.run("app:app", host="0.0.0.0", port=8890)

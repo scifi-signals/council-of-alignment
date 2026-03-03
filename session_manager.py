@@ -16,7 +16,7 @@ class SessionManager:
         if council_models is None:
             council_models = get_council_models(lead_model)
 
-        session_id = str(uuid.uuid4())[:8]
+        session_id = uuid.uuid4().hex[:16]
         db = await get_db()
         try:
             await db.execute(

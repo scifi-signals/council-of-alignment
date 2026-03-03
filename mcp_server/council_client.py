@@ -8,7 +8,7 @@ class CouncilClient:
     """Async wrapper around the Council API v1 endpoints."""
 
     def __init__(self):
-        self.base_url = os.environ.get("COUNCIL_API_URL", "http://159.203.126.156:8890")
+        self.base_url = os.environ.get("COUNCIL_API_URL", "http://localhost:8890")
         self.api_key = os.environ.get("COUNCIL_API_KEY", "")
         if not self.api_key:
             raise RuntimeError("COUNCIL_API_KEY environment variable is required")

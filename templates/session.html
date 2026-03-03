@@ -71,7 +71,7 @@
                             <h4>Points of Accord</h4>
                             <ul>
                             {% for c in synthesis.consensus %}
-                                <li>{{ c.point }} <div class="change-source">{% for r in c.reviewers %}<span class="model-chip model-chip-{{ r|lower }}">{{ r }}</span> {% endfor %}</div></li>
+                                <li>{{ c.point | e }} <div class="change-source">{% for r in c.reviewers %}<span class="model-chip model-chip-{{ r|lower }}">{{ r }}</span> {% endfor %}</div></li>
                             {% endfor %}
                             </ul>
                         </div>
@@ -82,10 +82,10 @@
                             <h4>Majority Position</h4>
                             <ul>
                             {% for m in synthesis.majority %}
-                                <li>{{ m.point }}
+                                <li>{{ m.point | e }}
                                     <div class="change-source"><span class="dim">For:</span> {% for r in m.for %}<span class="model-chip model-chip-{{ r|lower }}">{{ r }}</span> {% endfor %}</div>
                                     {% if m.against_reasoning and m.against %}
-                                    <div class="dissent-detail">{% for r in m.against %}<span class="model-chip model-chip-{{ r|lower }}">{{ r }}</span> {% endfor %} <span class="dim">disagrees:</span> {{ m.against_reasoning }}</div>
+                                    <div class="dissent-detail">{% for r in m.against %}<span class="model-chip model-chip-{{ r|lower }}">{{ r }}</span> {% endfor %} <span class="dim">disagrees:</span> {{ m.against_reasoning | e }}</div>
                                     {% elif m.against %}
                                     <div class="change-source"><span class="dim">Against:</span> {% for r in m.against %}<span class="model-chip model-chip-{{ r|lower }}">{{ r }}</span> {% endfor %}</div>
                                     {% endif %}
@@ -100,7 +100,7 @@
                             <h4>Lone Warnings</h4>
                             <ul>
                             {% for u in synthesis.unique_insights %}
-                                <li>{{ u.insight }} <div class="change-source"><span class="model-chip model-chip-{{ u.reviewer|lower }}">{{ u.reviewer }}</span></div></li>
+                                <li>{{ u.insight | e }} <div class="change-source"><span class="model-chip model-chip-{{ u.reviewer|lower }}">{{ u.reviewer }}</span></div></li>
                             {% endfor %}
                             </ul>
                         </div>
@@ -111,9 +111,9 @@
                             <h4>Points of Dissent</h4>
                             <ul>
                             {% for d in synthesis.disagreements %}
-                                <li>{{ d.topic }}
+                                <li>{{ d.topic | e }}
                                 {% for model, pos in d.positions.items() %}
-                                    <br><span class="model-chip model-chip-{{ model|lower }}">{{ model }}</span> <span class="dim">{{ pos }}</span>
+                                    <br><span class="model-chip model-chip-{{ model|lower }}">{{ model }}</span> <span class="dim">{{ pos | e }}</span>
                                 {% endfor %}
                                 </li>
                             {% endfor %}
@@ -131,7 +131,7 @@
                                     {{ "Another round recommended" if synthesis.overall_verdict.another_round_recommended else "No more rounds needed" }}
                                 </span>
                             </div>
-                            <p>{{ synthesis.overall_verdict.summary }}</p>
+                            <p>{{ synthesis.overall_verdict.summary | e }}</p>
                         </div>
                         {% endif %}
                     </div>
@@ -222,7 +222,7 @@
                         <div class="attachments-items" id="attachments-items">
                             {% for att in attachments %}
                             <div class="attachment-item" id="att-{{ att.id }}">
-                                <span class="attachment-name">{{ att.filename }}</span>
+                                <span class="attachment-name">{{ att.filename | e }}</span>
                                 <span class="attachment-size dim">{{ "%.1f KB"|format(att.size_bytes / 1024) if att.size_bytes else "0 B" }}</span>
                                 <button class="attachment-remove" onclick="removeAttachment('{{ att.id }}')" title="Remove">&times;</button>
                             </div>
@@ -260,13 +260,13 @@
                             <span class="change-category">{{ c.category or 'other' }}</span>
                             <span class="badge badge-{{ c.confidence or 'single' }}">{{ c.confidence or 'single' }}</span>
                         </div>
-                        <p class="change-desc">{{ c.description }}</p>
-                        {% if c.rationale %}<p class="change-rationale">{{ c.rationale }}</p>{% endif %}
+                        <p class="change-desc">{{ c.description | e }}</p>
+                        {% if c.rationale %}<p class="change-rationale">{{ c.rationale | e }}</p>{% endif %}
                         <div class="change-source">
                             {% for r in c.source_reviewers or [] %}<span class="model-chip model-chip-{{ r|lower }}">{{ r }}</span> {% endfor %}
                         </div>
                         {% if d and not d.accepted and d.reason %}
-                        <p class="dim" style="margin-top: 0.25rem; font-size: 0.85rem;">Rejected: {{ d.reason }}</p>
+                        <p class="dim" style="margin-top: 0.25rem; font-size: 0.85rem;">Rejected: {{ d.reason | e }}</p>
                         {% endif %}
                     </div>
                     {% if not d and is_owner %}

@@ -4,14 +4,10 @@
 
 function renderMarkdown(el) {
     if (!el || el.dataset.rendered) return;
-    const raw = el.innerHTML
-        .replace(/<br\s*\/?>/gi, '\n')
-        .replace(/&lt;/g, '<')
-        .replace(/&gt;/g, '>')
-        .replace(/&amp;/g, '&')
-        .replace(/&quot;/g, '"');
+    const raw = el.textContent;
     if (typeof marked !== 'undefined') {
-        el.innerHTML = marked.parse(raw);
+        const html = marked.parse(raw);
+        el.innerHTML = typeof DOMPurify !== 'undefined' ? DOMPurify.sanitize(html) : html;
     }
     el.dataset.rendered = 'true';
 }
@@ -201,6 +197,6 @@ function submitDecisions() {
             submitBtn.innerHTML = 'Submit Decisions';
         }
         changesPanel.insertAdjacentHTML('beforeend',
-            '<div style="color:var(--red);padding:1rem;">Error submitting decisions: ' + err.message + '</div>');
+            '<div style="color:var(--red);padding:1rem;">Error submitting decisions. Please try again.</div>');
     });
 }

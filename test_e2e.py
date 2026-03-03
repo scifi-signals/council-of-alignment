@@ -1,11 +1,12 @@
 """End-to-end test: create → chat → convene → accept/reject → timeline → export."""
+import os
 import requests
 import json
 import sys
 import re
 import time
 
-BASE = sys.argv[1] if len(sys.argv) > 1 else "http://159.203.126.156:8890"
+BASE = sys.argv[1] if len(sys.argv) > 1 else os.getenv("COUNCIL_URL", "http://localhost:8890")
 
 def strip_html(html):
     text = re.sub(r'<[^>]+>', '\n', html)

@@ -15,7 +15,12 @@ GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
 # GitHub OAuth (user auth — separate from GITHUB_TOKEN which is for repo access)
 GITHUB_CLIENT_ID = os.getenv("GITHUB_CLIENT_ID", "")
 GITHUB_CLIENT_SECRET = os.getenv("GITHUB_CLIENT_SECRET", "")
-SESSION_SECRET = os.getenv("SESSION_SECRET", "change-me-in-production")
+SESSION_SECRET = os.getenv("SESSION_SECRET", "")
+if not SESSION_SECRET:
+    import secrets as _secrets
+    SESSION_SECRET = _secrets.token_urlsafe(64)
+    import warnings
+    warnings.warn("SESSION_SECRET not set — using random value (sessions won't survive restart)")
 BASE_URL = os.getenv("BASE_URL", "http://localhost:8890")
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"

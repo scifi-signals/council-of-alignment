@@ -47,4 +47,4 @@ print("\n--- LEAD RESPONSE ---")
 print(text)
 
 print("\n=== Session ID: %s ===" % session_id)
-print("View at: http://159.203.126.156:8890/session/%s" % session_id)
+print("View at: %s/session/%s" % (BASE, session_id))

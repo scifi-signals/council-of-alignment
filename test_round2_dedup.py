@@ -124,7 +124,7 @@ def main():
     else:
         print("REVIEW NEEDED — %d potential overlaps detected." % len(overlaps))
 
-    print("\nView at: http://159.203.126.156:8890/session/%s" % SESSION)
+    print("\nView at: %s/session/%s" % (BASE, SESSION))
 
 
 if __name__ == "__main__":

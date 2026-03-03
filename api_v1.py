@@ -1,6 +1,7 @@
 """Council of Alignment — API v1 (JSON REST with API key auth)."""
 
 import os
+import hmac
 import uuid
 import logging
 
@@ -29,7 +30,7 @@ async def require_api_key(request: Request) -> None:
     if not auth.startswith("Bearer "):
         raise HTTPException(401, "Missing Authorization: Bearer <key> header")
     token = auth[7:]
-    if token != COUNCIL_API_KEY:
+    if not hmac.compare_digest(token, COUNCIL_API_KEY):
         raise HTTPException(403, "Invalid API key")
 
 
@@ -60,11 +61,11 @@ async def create_session(request: Request):
     sm, dispatcher, tracker, github_ctx = _get_shared(request)
     body = await request.json()
 
-    title = body.get("title", "Untitled Review")
+    title = body.get("title", "Untitled Review")[:200]
     lead_model = body.get("lead_model", "claude")
 
     if lead_model not in MODELS:
-        raise HTTPException(400, f"Invalid lead_model. Choose from: {list(MODELS.keys())}")
+        raise HTTPException(400, "Invalid lead_model")
 
     council_models = get_council_models(lead_model)
     session = await sm.create_session(title, lead_model, user_id=None)
@@ -112,12 +113,18 @@ async def add_files(session_id: str, request: Request):
     files = body.get("files", [])
     if not files:
         raise HTTPException(400, "No files provided")
+    if len(files) > 100:
+        raise HTTPException(400, "Too many files (max 100)")
+
+    MAX_FILE_CONTENT = 500 * 1024  # 500KB per file
 
     db = await get_db()
     try:
         for f in files:
-            filename = f.get("filename", "unnamed")
+            filename = f.get("filename", "unnamed")[:500]
             content = f.get("content", "")
+            if len(content) > MAX_FILE_CONTENT:
+                continue  # skip oversized files
             await db.execute(
                 "INSERT INTO attachments (id, session_id, filename, content, size_bytes) VALUES (?, ?, ?, ?, ?)",
                 (uuid.uuid4().hex[:8], session_id, filename, content, len(content)),
@@ -240,8 +247,10 @@ async def decide(session_id: str, request: Request):
     rejected = []
 
     for decision in decisions:
-        change_id = decision["id"]
-        is_accepted = decision["accepted"]
+        change_id = decision.get("id")
+        is_accepted = decision.get("accepted")
+        if not change_id or is_accepted is None:
+            continue
         reason = decision.get("reason", "")
 
         change = changes.get(change_id)
