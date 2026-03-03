@@ -123,7 +123,7 @@ function submitDecisions() {
 
     const form = document.getElementById('decide-form');
     const action = form.getAttribute('data-action');
-    const changesPanel = document.getElementById('changes-panel');
+    const changesSection = form.closest('.changes-section');
 
     // Show loading state with spinner + timer
     const submitBtn = form.querySelector('.btn-submit-decisions');
@@ -140,7 +140,7 @@ function submitDecisions() {
             <p class="convene-elapsed" id="decide-elapsed">0s</p>
         </div>
     `;
-    changesPanel.insertAdjacentHTML('beforeend', loadingHtml);
+    if (changesSection) changesSection.insertAdjacentHTML('beforeend', loadingHtml);
 
     const timerInterval = setInterval(() => {
         const secs = Math.floor((Date.now() - startTime) / 1000);
@@ -182,10 +182,6 @@ function submitDecisions() {
         chatMessages.querySelectorAll('.markdown-body').forEach(renderMarkdown);
         scrollChat();
 
-        // Collapse the right panel — changes are decided
-        document.getElementById('session-body').classList.remove('has-council');
-        changesPanel.innerHTML = '';
-
         // Refresh evolution timeline
         if (typeof loadTimeline === 'function') loadTimeline();
     })
@@ -196,7 +192,9 @@ function submitDecisions() {
             submitBtn.disabled = false;
             submitBtn.innerHTML = 'Submit Decisions';
         }
-        changesPanel.insertAdjacentHTML('beforeend',
-            '<div style="color:var(--red);padding:1rem;">Error submitting decisions. Please try again.</div>');
+        if (changesSection) {
+            changesSection.insertAdjacentHTML('beforeend',
+                '<div style="color:var(--red);padding:1rem;">Error submitting decisions. Please try again.</div>');
+        }
     });
 }

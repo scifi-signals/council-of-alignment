@@ -978,9 +978,7 @@ def _build_council_html(session: dict, reviews: dict, synthesis: dict, round_num
         html += f'<div class="chamber-panel"><div class="review-body markdown-body">{escaped}</div></div>'
         html += '</div>'
 
-    html += '</div>'  # close council-review-content
-
-    # ─── Proposed changes (sorted by confidence) ────────
+    # ─── Proposed changes (inline, below verdict) ────────
     changes = synthesis.get("proposed_changes", [])
     if changes:
         confidence_order = {"consensus": 0, "majority": 1, "single": 2}
@@ -1018,6 +1016,7 @@ def _build_council_html(session: dict, reviews: dict, synthesis: dict, round_num
         html += '<div id="decide-result"></div>'
         html += '</div>'
 
+    html += '</div>'  # close council-review-content
     html += '</div>'  # close council-results
     return html
 

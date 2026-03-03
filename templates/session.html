@@ -32,7 +32,7 @@
     {% endif %}
 
     <!-- Session body: single column by default, side-by-side when undecided changes -->
-    <div class="session-body{% if synthesis and has_undecided %} has-council{% endif %}" id="session-body">
+    <div class="session-body" id="session-body">
 
     <!-- Chat area -->
     <div class="chat-area">
@@ -149,6 +149,51 @@ When you're ready, hit **Convene the Council** for independent reviews from a pa
                     <div class="chamber-panel"><div class="review-body markdown-body">{{ r.response | e }}</div></div>
                 </div>
                 {% endfor %}
+
+                <!-- Proposed changes (inline below synthesis) -->
+                {% if synthesis and synthesis.proposed_changes %}
+                <div class="changes-section">
+                    <h3>Proposed Changes</h3>
+                    <form id="decide-form" data-action="/api/decide/{{ session.id }}">
+                    {% for c in synthesis.proposed_changes|sort(attribute='confidence') %}
+                        {% set d = decided.get(c.id) %}
+                        <div class="change-item {% if d %}{{ 'decided-accept' if d.accepted else 'decided-reject' }}{% endif %}" data-change-id="{{ c.id }}">
+                            <div class="change-info">
+                                <div class="change-badges">
+                                    <span class="change-category">{{ c.category or 'other' }}</span>
+                                    <span class="badge badge-{{ c.confidence or 'single' }}">{{ c.confidence or 'single' }}</span>
+                                </div>
+                                <p class="change-desc">{{ c.description | e }}</p>
+                                {% if c.rationale %}<p class="change-rationale">{{ c.rationale | e }}</p>{% endif %}
+                                <div class="change-source">
+                                    {% for r in c.source_reviewers or [] %}<span class="model-chip model-chip-{{ r|lower }}">{{ r }}</span> {% endfor %}
+                                </div>
+                                {% if d and not d.accepted and d.reason %}
+                                <p class="dim" style="margin-top: 0.25rem; font-size: 0.85rem;">Rejected: {{ d.reason | e }}</p>
+                                {% endif %}
+                            </div>
+                            {% if not d and is_owner %}
+                            <div class="change-actions">
+                                <button type="button" class="btn btn-accept" onclick="setDecision(this, '{{ c.id }}', true)">Accept</button>
+                                <button type="button" class="btn btn-reject" onclick="setDecision(this, '{{ c.id }}', false)">Reject</button>
+                            </div>
+                            {% elif d %}
+                            <div class="change-actions">
+                                <span class="badge {{ 'badge-accepted' if d.accepted else 'badge-rejected' }}">{{ 'Accepted' if d.accepted else 'Rejected' }}</span>
+                            </div>
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+
+                    {% if has_undecided and is_owner %}
+                    <button type="button" class="btn btn-submit-decisions" onclick="submitDecisions()">Submit Decisions</button>
+                    {% else %}
+                    <div class="dim" style="text-align: center; padding: var(--space-2);">All changes decided. Continue chatting or convene another round.</div>
+                    {% endif %}
+                    </form>
+                    <div id="decide-result"></div>
+                </div>
+                {% endif %}
             </div>
             {% else %}
             <div class="message {{ 'user-message' if msg.role == 'user' else 'assistant-message' }}">
@@ -252,52 +297,7 @@ When you're ready, hit **Convene the Council** for independent reviews from a pa
         {% endif %}
     </div>
 
-    <!-- Changes panel (right side when undecided changes exist) -->
-    <div class="changes-panel" id="changes-panel">
-        {% if synthesis and synthesis.proposed_changes %}
-        <div class="changes-section">
-            <h3>Proposed Changes</h3>
-            <form id="decide-form" data-action="/api/decide/{{ session.id }}">
-            {% for c in synthesis.proposed_changes|sort(attribute='confidence') %}
-                {% set d = decided.get(c.id) %}
-                <div class="change-item {% if d %}{{ 'decided-accept' if d.accepted else 'decided-reject' }}{% endif %}" data-change-id="{{ c.id }}">
-                    <div class="change-info">
-                        <div class="change-badges">
-                            <span class="change-category">{{ c.category or 'other' }}</span>
-                            <span class="badge badge-{{ c.confidence or 'single' }}">{{ c.confidence or 'single' }}</span>
-                        </div>
-                        <p class="change-desc">{{ c.description | e }}</p>
-                        {% if c.rationale %}<p class="change-rationale">{{ c.rationale | e }}</p>{% endif %}
-                        <div class="change-source">
-                            {% for r in c.source_reviewers or [] %}<span class="model-chip model-chip-{{ r|lower }}">{{ r }}</span> {% endfor %}
-                        </div>
-                        {% if d and not d.accepted and d.reason %}
-                        <p class="dim" style="margin-top: 0.25rem; font-size: 0.85rem;">Rejected: {{ d.reason | e }}</p>
-                        {% endif %}
-                    </div>
-                    {% if not d and is_owner %}
-                    <div class="change-actions">
-                        <button type="button" class="btn btn-accept" onclick="setDecision(this, '{{ c.id }}', true)">Accept</button>
-                        <button type="button" class="btn btn-reject" onclick="setDecision(this, '{{ c.id }}', false)">Reject</button>
-                    </div>
-                    {% elif d %}
-                    <div class="change-actions">
-                        <span class="badge {{ 'badge-accepted' if d.accepted else 'badge-rejected' }}">{{ 'Accepted' if d.accepted else 'Rejected' }}</span>
-                    </div>
-                    {% endif %}
-                </div>
-            {% endfor %}
-
-            {% if has_undecided and is_owner %}
-            <button type="button" class="btn btn-submit-decisions" onclick="submitDecisions()">Submit Decisions</button>
-            {% else %}
-            <div class="dim" style="text-align: center; padding: var(--space-2);">All changes decided. Continue chatting or convene another round.</div>
-            {% endif %}
-            </form>
-            <div id="decide-result"></div>
-        </div>
-        {% endif %}
-    </div>
+    <div id="changes-panel"></div>
 
     </div><!-- /.session-body -->
 </div>
@@ -644,21 +644,12 @@ async function conveneCouncil() {
         const temp = document.createElement('div');
         temp.innerHTML = html;
 
-        // Extract review content and append to chat
+        // Extract review content (now includes proposed changes inline) and append to chat
         const reviewContent = temp.querySelector('.council-review-content');
         if (reviewContent) {
             chatMessages.appendChild(reviewContent);
             reviewContent.querySelectorAll('.markdown-body').forEach(renderMarkdown);
             scrollChat();
-        }
-
-        // Extract changes and put in right panel
-        const changesContent = temp.querySelector('.changes-section');
-        const changesPanel = document.getElementById('changes-panel');
-        changesPanel.innerHTML = '';
-        if (changesContent) {
-            changesPanel.appendChild(changesContent);
-            document.getElementById('session-body').classList.add('has-council');
         }
 
         // Refresh evolution timeline
