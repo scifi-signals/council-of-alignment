@@ -42,7 +42,13 @@
                 <div class="message-sender" style="color: {{ models[session.lead_model].color }}">
                     {{ models[session.lead_model].name }}
                 </div>
-                <div class="message-content markdown-body">Welcome! I'm your Lead AI for this session.<br><br>**Have an idea?** Describe it and I'll help you think it through.<br><br>**Have a codebase?** Paste a GitHub link below to connect your repo, or upload a .zip — I'll pull in the relevant files automatically.<br><br>When you're ready, hit **Convene the Council** for independent reviews from a panel of AI models.</div>
+                <div class="message-content markdown-body">Welcome! I'm your Lead AI for this session.
+
+**Have an idea?** Describe it and I'll help you think it through.
+
+**Have a codebase?** Paste a GitHub link below to connect your repo, or upload a .zip — I'll pull in the relevant files automatically.
+
+When you're ready, hit **Convene the Council** for independent reviews from a panel of AI models.</div>
             </div>
             {% endif %}
 
@@ -140,7 +146,7 @@
                 <!-- Reviewer tabs -->
                 {% for r in reviews %}
                 <div class="tab-content" id="tab-reviewer-{{ r.model_name }}">
-                    <div class="chamber-panel"><div class="review-body markdown-body">{{ r.response | e | replace('\n', '<br>') }}</div></div>
+                    <div class="chamber-panel"><div class="review-body markdown-body">{{ r.response | e }}</div></div>
                 </div>
                 {% endfor %}
             </div>
@@ -150,7 +156,7 @@
                      {% if msg.role == 'assistant' %}style="color: {{ models[session.lead_model].color }}"{% endif %}>
                     {{ "You" if msg.role == "user" else models[session.lead_model].name }}
                 </div>
-                <div class="message-content markdown-body">{{ msg.content | e | replace('\n', '<br>') }}</div>
+                <div class="message-content markdown-body">{{ msg.content | e }}</div>
             </div>
             {% endif %}
             {% endfor %}

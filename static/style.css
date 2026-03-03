@@ -169,6 +169,7 @@ body { font-family: var(--font-body); background: var(--bg-page); color: var(--t
 .empty-chat, .empty-council, .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: var(--space-6) var(--space-4); text-align: center; color: var(--text-muted); gap: var(--space-1); }
 .message { padding: var(--space-2) var(--space-3); border-radius: var(--radius-lg); max-width: 100%; line-height: 1.7; }
 .user-message { background: var(--accent-light); align-self: flex-end; max-width: 85%; border: 1px solid var(--accent-medium); }
+.user-message .message-content { white-space: pre-wrap; }
 .assistant-message { background: var(--bg-secondary); align-self: flex-start; max-width: 100%; border: 1px solid var(--border-subtle); box-shadow: var(--shadow-sm); }
 .message-sender { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
 .message-content { font-size: 15px; line-height: 1.7; word-wrap: break-word; color: var(--text-primary); }
@@ -451,11 +452,12 @@ button:disabled, .btn-disabled { opacity: 0.4; cursor: not-allowed; pointer-even
 
 /* A. Hero */
 .landing-hero { text-align: center; padding-top: 80px; padding-bottom: var(--space-6); }
+.landing-hero .landing-section-inner { display: flex; flex-direction: column; align-items: center; }
 .landing-badge { display: inline-block; padding: 6px 16px; border-radius: 99px; font-size: 13px; font-weight: 600; letter-spacing: 0.3px; background: var(--accent-light); color: var(--accent); margin-bottom: var(--space-2); }
 .landing-headline { font-family: var(--font-heading); font-size: 3rem; font-weight: 700; letter-spacing: -1px; margin-bottom: var(--space-2); line-height: 1.1; }
 .landing-tagline { font-size: 1.15rem; color: var(--text-secondary); max-width: 520px; margin: 0 auto var(--space-3); line-height: 1.7; }
 .landing-hero .btn-login { margin-bottom: var(--space-4); }
-.landing-hero .hero-image { width: 100%; max-width: 640px; border-radius: var(--radius-xl); box-shadow: var(--shadow-lg); }
+.landing-hero .hero-image { display: block; width: 100%; max-width: 640px; margin: 0 auto; border-radius: var(--radius-xl); box-shadow: var(--shadow-lg); }
 
 /* B. How It Works — steps */
 .landing-section-title { font-family: var(--font-heading); font-size: 1.75rem; font-weight: 700; text-align: center; margin-bottom: var(--space-4); letter-spacing: -0.5px; }

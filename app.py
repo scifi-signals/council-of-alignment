@@ -813,13 +813,16 @@ async def api_timeline(request: Request, session_id: str):
 # ─── Helpers ─────────────────────────────────────────────────
 
 def _escape(text: str) -> str:
-    """Escape HTML but preserve newlines for markdown rendering."""
+    """Escape HTML but preserve newlines for markdown rendering.
+
+    Newlines are kept as literal \\n (not <br>) so that renderMarkdown()
+    can read them via el.textContent and pass them to marked.parse().
+    """
     return (
         text.replace("&", "&amp;")
         .replace("<", "&lt;")
         .replace(">", "&gt;")
         .replace('"', "&quot;")
-        .replace("\n", "<br>")
     )
 
 
