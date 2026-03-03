@@ -157,7 +157,7 @@ body { font-family: var(--font-body); background: var(--bg-page); color: var(--t
 .chat-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; position: relative; background: var(--bg-primary); }
 .chat-messages { flex: 1; overflow-y: auto; padding: var(--space-3); padding-bottom: 0; display: flex; flex-direction: column; gap: var(--space-2); max-width: 960px; width: 100%; margin: 0 auto; }
 .empty-chat, .empty-council, .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: var(--space-6) var(--space-4); text-align: center; color: var(--text-muted); gap: var(--space-1); }
-.message { padding: var(--space-2) var(--space-3); border-radius: var(--radius-lg); max-width: 100%; line-height: 1.7; }
+.message { padding: var(--space-3) var(--space-4); border-radius: var(--radius-lg); max-width: 100%; line-height: 1.7; }
 .user-message { background: var(--accent-light); align-self: flex-end; max-width: 85%; border: 1px solid var(--accent-medium); }
 .user-message .message-content { white-space: pre-wrap; }
 .assistant-message { background: var(--bg-secondary); align-self: flex-start; max-width: 100%; border: 1px solid var(--border-subtle); box-shadow: var(--shadow-sm); }
@@ -235,7 +235,7 @@ body { font-family: var(--font-body); background: var(--bg-page); color: var(--t
 .github-error { font-size: 12px; color: var(--red); width: 100%; margin-top: 2px; }
 
 /* Convene row */
-.convene-row { display: flex; justify-content: flex-start; margin-bottom: var(--space-1); }
+.convene-row { display: flex; justify-content: center; margin-bottom: var(--space-1); }
 
 /* Changes (inline below synthesis) */
 

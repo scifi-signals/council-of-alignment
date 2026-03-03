@@ -650,7 +650,8 @@ async function conveneCouncil() {
         if (reviewContent) {
             chatMessages.appendChild(reviewContent);
             reviewContent.querySelectorAll('.markdown-body').forEach(renderMarkdown);
-            scrollChat();
+            // Scroll to the top of the synthesis, not the bottom of chat
+            setTimeout(() => { reviewContent.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 100);
         }
 
         // Refresh evolution timeline
