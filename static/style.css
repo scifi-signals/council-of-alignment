@@ -441,3 +441,75 @@ button:disabled, .btn-disabled { opacity: 0.4; cursor: not-allowed; pointer-even
     .timeline-connector { width: 24px; }
     .attribution-label { min-width: 60px; font-size: 11px; }
 }
+
+/* ── Landing Page ── */
+.landing { max-width: none; padding: 0; }
+
+.landing-section { padding: var(--space-6) var(--space-3); }
+.landing-section--alt { background: var(--bg-secondary); }
+.landing-section-inner { max-width: 900px; margin: 0 auto; }
+
+/* A. Hero */
+.landing-hero { text-align: center; padding-top: 80px; padding-bottom: var(--space-6); }
+.landing-badge { display: inline-block; padding: 6px 16px; border-radius: 99px; font-size: 13px; font-weight: 600; letter-spacing: 0.3px; background: var(--accent-light); color: var(--accent); margin-bottom: var(--space-2); }
+.landing-headline { font-family: var(--font-heading); font-size: 3rem; font-weight: 700; letter-spacing: -1px; margin-bottom: var(--space-2); line-height: 1.1; }
+.landing-tagline { font-size: 1.15rem; color: var(--text-secondary); max-width: 520px; margin: 0 auto var(--space-3); line-height: 1.7; }
+.landing-hero .btn-login { margin-bottom: var(--space-4); }
+.landing-hero .hero-image { width: 100%; max-width: 640px; border-radius: var(--radius-xl); box-shadow: var(--shadow-lg); }
+
+/* B. How It Works — steps */
+.landing-section-title { font-family: var(--font-heading); font-size: 1.75rem; font-weight: 700; text-align: center; margin-bottom: var(--space-4); letter-spacing: -0.5px; }
+.landing-steps { display: flex; align-items: flex-start; justify-content: center; gap: 0; }
+.landing-step { flex: 1; max-width: 260px; text-align: center; padding: var(--space-3) var(--space-2); }
+.landing-step-number { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 50%; background: var(--accent); color: white; font-size: 1rem; font-weight: 700; margin-bottom: var(--space-2); }
+.landing-step h3 { font-family: var(--font-heading); font-size: 1.1rem; font-weight: 700; margin-bottom: var(--space-1); }
+.landing-step p { font-size: 14px; color: var(--text-secondary); line-height: 1.6; }
+.landing-step-arrow { display: flex; align-items: center; justify-content: center; font-size: 1.5rem; color: var(--text-muted); padding-top: var(--space-4); flex-shrink: 0; width: 40px; }
+
+/* C. The Council — model cards */
+.landing-models { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-2); }
+.landing-model-card { background: var(--bg-secondary); border: 1px solid var(--border-subtle); border-top: 3px solid var(--model-accent); border-radius: var(--radius-lg); padding: var(--space-3); text-align: center; box-shadow: var(--shadow-card); transition: box-shadow 0.2s, transform 0.2s; }
+.landing-model-card:hover { box-shadow: var(--shadow-lg); transform: translateY(-2px); }
+.landing-model-orb { width: 32px; height: 32px; border-radius: 50%; margin: 0 auto var(--space-2); box-shadow: 0 0 12px color-mix(in srgb, var(--model-accent) 40%, transparent); }
+.landing-model-card h3 { font-family: var(--font-heading); font-size: 1.05rem; font-weight: 700; margin-bottom: var(--space-1); color: var(--model-accent); }
+.landing-model-card p { font-size: 13px; color: var(--text-secondary); line-height: 1.6; }
+
+/* D. Features — 2x2 grid */
+.landing-features { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-2); }
+.landing-feature-card { padding: var(--space-3); background: var(--bg-primary); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); box-shadow: var(--shadow-card); }
+.landing-feature-card h3 { font-family: var(--font-heading); font-size: 1.05rem; font-weight: 700; margin-bottom: var(--space-1); }
+.landing-feature-card p { font-size: 14px; color: var(--text-secondary); line-height: 1.7; }
+
+/* E. Integration — split layout */
+.landing-integration { display: flex; gap: var(--space-4); align-items: flex-start; }
+.landing-integration-text { flex: 1; }
+.landing-integration-text p { font-size: 15px; color: var(--text-secondary); line-height: 1.7; margin-bottom: var(--space-2); }
+.landing-tool-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: var(--space-2); }
+.landing-tool-list code { padding: 4px 10px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius); font-size: 13px; color: var(--accent); white-space: nowrap; }
+.landing-integration-code { flex: 1; min-width: 0; }
+.landing-integration-code pre { background: #1A1D23; color: #E6EAF2; padding: var(--space-3); border-radius: var(--radius-lg); overflow-x: auto; font-size: 13px; line-height: 1.7; margin: 0; box-shadow: var(--shadow-lg); }
+.landing-integration-code code { background: none; padding: 0; color: inherit; font-size: 13px; }
+.code-comment { color: #6B7280; }
+.code-key { color: #93C5FD; }
+.code-str { color: #86EFAC; }
+
+/* F. Final CTA */
+.landing-cta { text-align: center; padding-top: 60px; padding-bottom: 80px; }
+.landing-cta-orbs { display: flex; justify-content: center; gap: var(--space-2); margin-bottom: var(--space-3); }
+.landing-orb { width: 24px; height: 24px; border-radius: 50%; box-shadow: 0 0 16px color-mix(in srgb, currentColor 30%, transparent); }
+.landing-cta h2 { font-family: var(--font-heading); font-size: 2rem; font-weight: 700; margin-bottom: var(--space-2); letter-spacing: -0.5px; }
+.landing-cta .landing-tagline { margin-bottom: var(--space-3); }
+
+/* Landing responsive */
+@media (max-width: 768px) {
+    .landing-headline { font-size: 2rem; }
+    .landing-section-title { font-size: 1.4rem; }
+    .landing-steps { flex-direction: column; align-items: center; }
+    .landing-step { max-width: 100%; }
+    .landing-step-arrow { transform: rotate(90deg); padding: 0; width: auto; height: 32px; }
+    .landing-models { grid-template-columns: repeat(2, 1fr); }
+    .landing-features { grid-template-columns: 1fr; }
+    .landing-integration { flex-direction: column; }
+    .landing-integration-code { width: 100%; }
+    .landing-cta h2 { font-size: 1.5rem; }
+}

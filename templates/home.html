@@ -1,22 +1,168 @@
 {% extends "base.html" %}
 {% block title %}Council of Alignment{% endblock %}
 
+{% block container_class %}{% if not user %}landing{% else %}container{% endif %}{% endblock %}
+
 {% block content %}
-{% if not sessions %}
-<div class="hero">
-    <h1>Council of Alignment</h1>
-    <p class="hero-sub">Design with one AI. Get critical review from three others.</p>
-    {% if user %}
-    <a href="/new" class="btn btn-primary btn-lg">Start a Session</a>
-    {% else %}
-    <a href="/auth/login" class="btn btn-login btn-lg">
-        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
-        Sign in with GitHub to Start
-    </a>
-    {% endif %}
-    <img src="/static/council-hero.png" alt="The Council" class="hero-image">
-</div>
-{% else %}
+{% if not user %}
+{# ── Landing Page ── #}
+
+{# A. Hero #}
+<section class="landing-section landing-hero">
+    <div class="landing-section-inner">
+        <span class="landing-badge">Multi-Model Design Review</span>
+        <h1 class="landing-headline">Council of Alignment</h1>
+        <p class="landing-tagline">Design with one AI. Get critical review from three others. Ship with confidence.</p>
+        <a href="/auth/login" class="btn btn-login btn-lg">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+            Sign in with GitHub
+        </a>
+        <img src="/static/council-hero.png" alt="The Council in action" class="hero-image">
+    </div>
+</section>
+
+{# B. How It Works #}
+<section class="landing-section landing-section--alt">
+    <div class="landing-section-inner">
+        <h2 class="landing-section-title">How It Works</h2>
+        <div class="landing-steps">
+            <div class="landing-step">
+                <span class="landing-step-number">1</span>
+                <h3>Chat with Your Lead</h3>
+                <p>Pick any model as Lead AI. Brainstorm, refine requirements, attach source code.</p>
+            </div>
+            <span class="landing-step-arrow" aria-hidden="true">&rarr;</span>
+            <div class="landing-step">
+                <span class="landing-step-number">2</span>
+                <h3>Convene the Council</h3>
+                <p>One click sends everything to 3 independent reviewers. Parallel analysis, no groupthink.</p>
+            </div>
+            <span class="landing-step-arrow" aria-hidden="true">&rarr;</span>
+            <div class="landing-step">
+                <span class="landing-step-number">3</span>
+                <h3>Review &amp; Decide</h3>
+                <p>Structured synthesis: Accord, Majority, Lone Warnings, Dissent. Accept or reject each change.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+{# C. The Council #}
+<section class="landing-section">
+    <div class="landing-section-inner">
+        <h2 class="landing-section-title">Four perspectives. Zero echo chambers.</h2>
+        <div class="landing-models">
+            <div class="landing-model-card" style="--model-accent: var(--claude)">
+                <div class="landing-model-orb" style="background: var(--claude)"></div>
+                <h3>Claude</h3>
+                <p>Architectural analysis, structural issues, design patterns at scale.</p>
+            </div>
+            <div class="landing-model-card" style="--model-accent: var(--chatgpt)">
+                <div class="landing-model-orb" style="background: var(--chatgpt)"></div>
+                <h3>ChatGPT</h3>
+                <p>Pragmatic engineering, implementation feasibility, developer experience.</p>
+            </div>
+            <div class="landing-model-card" style="--model-accent: var(--gemini)">
+                <div class="landing-model-orb" style="background: var(--gemini)"></div>
+                <h3>Gemini</h3>
+                <p>Broad pattern recognition, unconventional approaches, overlooked alternatives.</p>
+            </div>
+            <div class="landing-model-card" style="--model-accent: var(--grok)">
+                <div class="landing-model-orb" style="background: var(--grok)"></div>
+                <h3>Grok</h3>
+                <p>Contrarian perspective, challenges assumptions, asks uncomfortable questions.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+{# D. Features #}
+<section class="landing-section landing-section--alt">
+    <div class="landing-section-inner">
+        <h2 class="landing-section-title">Built for real design review</h2>
+        <div class="landing-features">
+            <div class="landing-feature-card">
+                <h3>Structured Disagreement</h3>
+                <p>Synthesis preserves dissent. See where models agree, where they split, and where a lone voice raises a warning everyone else missed.</p>
+            </div>
+            <div class="landing-feature-card">
+                <h3>Actionable Proposals</h3>
+                <p>Concrete changes with confidence levels and source attribution. Accept or reject each one individually.</p>
+            </div>
+            <div class="landing-feature-card">
+                <h3>Multi-Round Evolution</h3>
+                <p>Decisions feed into the next round. The Council tracks what changed, what was rejected, and why.</p>
+            </div>
+            <div class="landing-feature-card">
+                <h3>Full Source Context</h3>
+                <p>Zip files, GitHub repos, full codebases. Every reviewer sees everything you attach.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+{# E. MCP / API Integration #}
+<section class="landing-section">
+    <div class="landing-section-inner">
+        <div class="landing-integration">
+            <div class="landing-integration-text">
+                <h2 class="landing-section-title" style="text-align: left">Call the Council from Your IDE</h2>
+                <p>MCP server for Claude Code, Cursor, or any MCP-compatible tool. Create sessions, attach files, convene the Council, and review results — without leaving your editor.</p>
+                <p>Or hit the REST API directly from scripts, CI pipelines, or your own tooling.</p>
+                <div class="landing-tool-list">
+                    <code>council_create_session</code>
+                    <code>council_add_files</code>
+                    <code>council_send_message</code>
+                    <code>council_convene</code>
+                    <code>council_decide</code>
+                </div>
+            </div>
+            <div class="landing-integration-code">
+<pre><code><span class="code-comment">// claude_desktop_config.json</span>
+{
+  <span class="code-key">"mcpServers"</span>: {
+    <span class="code-key">"council"</span>: {
+      <span class="code-key">"command"</span>: <span class="code-str">"uvx"</span>,
+      <span class="code-key">"args"</span>: [<span class="code-str">"council-of-alignment"</span>]
+    }
+  }
+}
+
+<span class="code-comment">// Usage from any MCP client</span>
+session = council_create_session(
+  title=<span class="code-str">"Auth System Review"</span>,
+  lead_model=<span class="code-str">"claude"</span>
+)
+council_add_files(session.id, files)
+council_send_message(session.id,
+  <span class="code-str">"Review for security gaps"</span>
+)
+result = council_convene(session.id)</code></pre>
+            </div>
+        </div>
+    </div>
+</section>
+
+{# F. Final CTA #}
+<section class="landing-section landing-section--alt landing-cta">
+    <div class="landing-section-inner">
+        <div class="landing-cta-orbs" aria-hidden="true">
+            <span class="landing-orb" style="background: var(--claude)"></span>
+            <span class="landing-orb" style="background: var(--chatgpt)"></span>
+            <span class="landing-orb" style="background: var(--gemini)"></span>
+            <span class="landing-orb" style="background: var(--grok)"></span>
+        </div>
+        <h2>Ready to convene?</h2>
+        <p class="landing-tagline">One model gives you an opinion. Four models give you a decision.</p>
+        <a href="/auth/login" class="btn btn-login btn-lg">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+            Sign in with GitHub
+        </a>
+    </div>
+</section>
+
+{% elif sessions %}
+{# ── Sessions Grid (logged in, has sessions) ── #}
 <div class="page-header">
     <div class="page-header-left">
         <h1>Design Sessions</h1>
@@ -47,6 +193,15 @@
         {% endif %}
     </div>
     {% endfor %}
+</div>
+
+{% else %}
+{# ── Empty State (logged in, no sessions) ── #}
+<div class="hero">
+    <h1>Council of Alignment</h1>
+    <p class="hero-sub">Design with one AI. Get critical review from three others.</p>
+    <a href="/new" class="btn btn-primary btn-lg">Start a Session</a>
+    <img src="/static/council-hero.png" alt="The Council" class="hero-image">
 </div>
 {% endif %}
 {% endblock %}
