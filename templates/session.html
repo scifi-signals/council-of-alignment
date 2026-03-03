@@ -163,6 +163,7 @@ When you're ready, hit **Convene the Council** for independent reviews from a pa
                                     <span class="change-category">{{ c.category or 'other' }}</span>
                                     <span class="badge badge-{{ c.confidence or 'single' }}">{{ c.confidence or 'single' }}</span>
                                 </div>
+                                {% if c.context %}<p class="change-context">{{ c.context | e }}</p>{% endif %}
                                 <p class="change-desc">{{ c.description | e }}</p>
                                 {% if c.rationale %}<p class="change-rationale">{{ c.rationale | e }}</p>{% endif %}
                                 <div class="change-source">

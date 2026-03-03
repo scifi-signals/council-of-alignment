@@ -1000,6 +1000,7 @@ def _build_council_html(session: dict, reviews: dict, synthesis: dict, round_num
                         <span class="change-category">{c.get("category", "other")}</span>
                         <span class="badge {conf_class}">{conf}</span>
                     </div>
+                    {"<p class='change-context'>" + _escape(c["context"]) + "</p>" if c.get("context") else ""}
                     <p class="change-desc">{_escape(c["description"])}</p>
                     {"<p class='change-rationale'>" + _escape(c.get("rationale", "")) + "</p>" if c.get("rationale") else ""}
                     <div class="change-source">{source_chips}</div>

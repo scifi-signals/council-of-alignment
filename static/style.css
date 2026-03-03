@@ -302,6 +302,7 @@ body { font-family: var(--font-body); background: var(--bg-page); color: var(--t
 .change-info { flex: 1; min-width: 0; }
 .change-badges { display: flex; align-items: center; gap: var(--space-1); margin-bottom: var(--space-1); flex-wrap: wrap; }
 .change-category { display: inline-block; padding: 2px 8px; background: var(--bg-elevated); border-radius: var(--radius); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-secondary); border: 1px solid var(--border-subtle); }
+.change-context { margin: 0 0 6px 0; font-size: 13px; color: var(--text-secondary); line-height: 1.5; font-style: italic; }
 .change-desc { margin: 4px 0; font-size: 15px; line-height: 1.6; }
 .change-rationale { font-size: 14px; color: var(--text-secondary); line-height: 1.5; }
 .change-source { font-size: 13px; color: var(--text-muted); margin-top: 4px; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }

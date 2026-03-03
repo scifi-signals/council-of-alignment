@@ -73,7 +73,8 @@ IMPORTANT INSTRUCTIONS FOR DEPTH:
     "proposed_changes": [
         {{
             "id": "change_001",
-            "description": "Write this like you're telling a friend what to do this weekend. Start with a verb. Be specific enough that the person could act on it WITHOUT asking follow-up questions. BAD: 'Develop clear before/after demonstrations that visually highlight improvements.' GOOD: 'Take the MonopolyTrader design, run it through the Council, screenshot v1 vs v3 side by side, and post it as a Twitter thread showing what each AI caught.' If your description could apply to any random software project, it's too vague — rewrite it until it's specific to THIS project.",
+            "context": "One sentence connecting this proposal to a specific finding above. Start with 'Because' and reference what the reviewers found. Example: 'Because all three reviewers flagged that the pricing page buries the free tier...' or 'Because Grok warned that the retry logic could loop forever...' — this helps the reader understand WHY this change is being proposed without scrolling back up.",
+            "description": "Write this as a DECISION to make, not a technical spec to implement. The reader is a founder/builder who needs to know WHAT to do and WHY — not HOW to code it. Start with a verb. BAD: 'Define a data validation schema with structured error types and implement middleware for input sanitization.' GOOD: 'Add input checking on your upload form — right now someone could submit an empty file and crash the server. A simple size and type check before processing would fix it.' If your description sounds like a JIRA ticket or consulting deliverable, rewrite it as advice to a smart friend.",
             "category": "architecture|risk|cost|ux|strategy|other",
             "source_reviewers": ["model1", "model2"],
             "confidence": "consensus|majority|single",
@@ -89,13 +90,15 @@ IMPORTANT INSTRUCTIONS FOR DEPTH:
 ```
 
 CRITICAL RULES FOR PROPOSED CHANGES:
+- The "context" field is REQUIRED. It must reference a specific finding from the synthesis above (consensus point, majority position, lone warning, or disagreement). The reader will see context BEFORE the description — it's their reminder of what motivated this change.
 - Start every description with an action verb: "Add...", "Remove...", "Change...", "Stop...", "Pick...", "Write...", "Cut..."
-- If the change could apply to ANY software project (like "add documentation", "improve onboarding", "implement data portability", "build clean separation between layers", "create modular architecture"), it's too generic. DROP IT. Do not include it. Only include changes that are specific to THIS project and THIS situation.
+- Write descriptions as DECISIONS, not technical specifications. The reader is a builder, not a developer reading a spec. BAD: "Implement a caching layer with TTL-based invalidation to reduce API latency." GOOD: "Cache your API responses so the page loads faster — right now every click makes a fresh call, which is why it feels sluggish."
+- BANNED WORDS in descriptions: schema, middleware, pipeline, infrastructure, abstraction, decouple, modular, architecture, scalable, extensible, implementation, utilize, leverage, enhance, optimize, streamline, robust, comprehensive. If you catch yourself using any of these, rewrite the sentence in plain English.
+- If the change could apply to ANY software project (like "add documentation", "improve onboarding", "implement data portability"), it's too generic. DROP IT. Only include changes specific to THIS project.
 - Separate strategic decisions (what to do with the project) from tactical improvements (how to make it better). Put strategic decisions first.
-- Maximum 5 proposed changes. Quality over quantity. If you only have 3 strong ones, stop at 3. Do NOT pad with generic software advice to fill a quota.
-- No corporate-speak. No "leverage", "enhance", "optimize", "streamline", "robust", "comprehensive", "actionable insights", "value proposition", "data portability", "clean separation", "modular architecture". Write like a human.
-- SELF-CHECK: Before including each proposed change, ask yourself: "Could a consultant say this about literally any project without reading the design?" If yes, delete it. Only keep changes that prove you actually read and understood THIS specific project.
-- Test each description: would a normal person read this and know exactly what to do tomorrow morning? If not, rewrite it.
+- Maximum 5 proposed changes. Quality over quantity. If you only have 3 strong ones, stop at 3. Do NOT pad with generic software advice.
+- SELF-CHECK: Before including each proposed change, ask yourself: "Could a consultant say this about literally any project without reading the design?" If yes, delete it.
+- Test each description: would a non-technical founder read this and know exactly what to do tomorrow morning? If not, rewrite it.
 - DEDUPLICATION: If a "Previously Decided Changes" section appears above, DO NOT re-propose any change that was already accepted — it's done. DO NOT re-propose rejected changes unless a reviewer explicitly argues for reconsideration with new evidence not available in the previous round. Focus only on NEW issues found in this round."""
 
 
