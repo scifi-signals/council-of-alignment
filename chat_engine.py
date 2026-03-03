@@ -420,7 +420,12 @@ class ChatEngine:
             github_context, github_loaded_files = await self._get_github_context(
                 session_id, lead_model, messages, att_rows, db
             )
-            has_code_context = bool(att_rows) or bool(github_context)
+            # Distinguish code files from documents — auto-verification only applies to code
+            DOC_EXT = {".pdf", ".docx", ".md", ".txt", ".rst", ".csv"}
+            code_files = [a for a in att_rows if not any(
+                a["filename"].lower().endswith(ext) for ext in DOC_EXT
+            )]
+            has_code_context = bool(code_files) or bool(github_context)
             if github_context:
                 system += github_context
 
