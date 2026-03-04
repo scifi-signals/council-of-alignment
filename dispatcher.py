@@ -53,8 +53,13 @@ class ModelDispatcher:
                 json=payload,
             )
             if resp.status_code != 200:
-                error_body = resp.text
-                raise RuntimeError(f"OpenRouter {resp.status_code}: {error_body}")
+                # Extract only safe fields — never log raw response which could echo auth headers
+                try:
+                    err_data = resp.json()
+                    err_msg = err_data.get("error", {}).get("message", "") if isinstance(err_data.get("error"), dict) else str(err_data.get("error", ""))
+                except Exception:
+                    err_msg = f"HTTP {resp.status_code}"
+                raise RuntimeError(f"OpenRouter {resp.status_code}: {err_msg}")
             data = resp.json()
 
         content = data["choices"][0]["message"]["content"]
