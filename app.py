@@ -75,7 +75,7 @@ async def lifespan(app: FastAPI):
     yield
 
 app = FastAPI(title="Council of Alignment", lifespan=lifespan, docs_url=None, redoc_url=None)
-app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET, max_age=30 * 24 * 60 * 60, same_site="lax")
+app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET, max_age=30 * 24 * 60 * 60, same_site="lax", https_only=True)
 
 limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
