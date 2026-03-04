@@ -31,6 +31,10 @@ if not ENCRYPTION_KEY:
 # Free tier: how many convenes a user gets before needing their own API key
 FREE_CONVENE_LIMIT = 3
 
+# Admin dashboard: comma-separated GitHub user IDs that can access /admin
+_admin_ids_raw = os.getenv("ADMIN_GITHUB_IDS", "")
+ADMIN_GITHUB_IDS: list[int] = [int(x.strip()) for x in _admin_ids_raw.split(",") if x.strip()]
+
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
 MODELS = {

@@ -65,7 +65,7 @@ from auth import (
     github_login_url, exchange_code_for_token, fetch_github_user,
     get_or_create_user, get_current_user, require_auth, require_auth_api,
     generate_state, get_user_api_key, set_user_api_key, delete_user_api_key,
-    increment_free_convenes, get_free_convenes_remaining,
+    increment_free_convenes, get_free_convenes_remaining, is_admin,
 )
 
 
@@ -286,6 +286,82 @@ async def session_page(request: Request, session_id: str):
 async def stats_page(request: Request):
     stats = await tracker.get_stats()
     return templates.TemplateResponse("stats.html", await _ctx(request, stats=stats))
+
+
+@app.get("/admin", response_class=HTMLResponse)
+async def admin_dashboard(request: Request):
+    user = await get_current_user(request)
+    if not is_admin(user):
+        raise HTTPException(404, "Not found")
+
+    db = await get_db()
+    try:
+        # Overview counts
+        total_users = (await (await db.execute("SELECT COUNT(*) FROM users")).fetchone())[0]
+        total_sessions = (await (await db.execute("SELECT COUNT(*) FROM sessions")).fetchone())[0]
+        total_convenes = (await (await db.execute("SELECT COUNT(*) FROM review_rounds")).fetchone())[0]
+        active_7d = (await (await db.execute(
+            "SELECT COUNT(DISTINCT user_id) FROM sessions WHERE created_at > datetime('now', '-7 days') AND user_id IS NOT NULL"
+        )).fetchone())[0]
+        byok_users = (await (await db.execute(
+            "SELECT COUNT(*) FROM users WHERE openrouter_key_encrypted IS NOT NULL AND openrouter_key_encrypted != ''"
+        )).fetchone())[0]
+
+        # Signups by day (30d)
+        cursor = await db.execute(
+            "SELECT date(created_at) as day, COUNT(*) as cnt FROM users "
+            "WHERE created_at > datetime('now', '-30 days') GROUP BY day ORDER BY day"
+        )
+        signups_by_day = [dict(r) for r in await cursor.fetchall()]
+
+        # Sessions by day (30d)
+        cursor = await db.execute(
+            "SELECT date(created_at) as day, COUNT(*) as cnt FROM sessions "
+            "WHERE created_at > datetime('now', '-30 days') GROUP BY day ORDER BY day"
+        )
+        sessions_by_day = [dict(r) for r in await cursor.fetchall()]
+
+        # Recent 10 users
+        cursor = await db.execute(
+            "SELECT id, github_login, display_name, avatar_url, created_at, free_convenes_used, "
+            "openrouter_key_encrypted IS NOT NULL AND openrouter_key_encrypted != '' as has_byok "
+            "FROM users ORDER BY created_at DESC LIMIT 10"
+        )
+        recent_users = [dict(r) for r in await cursor.fetchall()]
+
+        # Recent 10 sessions (with user info)
+        cursor = await db.execute(
+            "SELECT s.id, s.title, s.lead_model, s.created_at, s.status, "
+            "u.github_login, u.display_name, u.avatar_url "
+            "FROM sessions s LEFT JOIN users u ON s.user_id = u.id "
+            "ORDER BY s.created_at DESC LIMIT 10"
+        )
+        recent_sessions = [dict(r) for r in await cursor.fetchall()]
+
+        # Cost totals from reviews
+        cursor = await db.execute(
+            "SELECT COALESCE(SUM(tokens_in), 0) as total_tokens_in, "
+            "COALESCE(SUM(tokens_out), 0) as total_tokens_out, "
+            "COALESCE(SUM(cost_estimate), 0) as total_cost "
+            "FROM reviews"
+        )
+        cost_row = dict(await cursor.fetchone())
+    finally:
+        await db.close()
+
+    return templates.TemplateResponse("admin.html", await _ctx(
+        request,
+        total_users=total_users,
+        total_sessions=total_sessions,
+        total_convenes=total_convenes,
+        active_7d=active_7d,
+        byok_users=byok_users,
+        signups_by_day=signups_by_day,
+        sessions_by_day=sessions_by_day,
+        recent_users=recent_users,
+        recent_sessions=recent_sessions,
+        cost=cost_row,
+    ))
 
 
 # ─── Auth routes ─────────────────────────────────────────────

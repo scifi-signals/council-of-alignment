@@ -9,7 +9,7 @@ from fastapi import Request
 from fastapi.responses import RedirectResponse
 from starlette.exceptions import HTTPException
 
-from config import GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, BASE_URL, ENCRYPTION_KEY, FREE_CONVENE_LIMIT
+from config import GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, BASE_URL, ENCRYPTION_KEY, FREE_CONVENE_LIMIT, ADMIN_GITHUB_IDS
 from database import get_db
 
 # ─── BYOK key encryption helpers ────────────────────────────
@@ -99,6 +99,13 @@ async def get_free_convenes_remaining(user_id: str) -> int:
         return max(0, FREE_CONVENE_LIMIT - used)
     finally:
         await db.close()
+
+
+def is_admin(user: dict | None) -> bool:
+    """Check if a user has admin access."""
+    if not user:
+        return False
+    return user.get("github_id") in ADMIN_GITHUB_IDS
 
 
 def github_login_url(state: str) -> str:

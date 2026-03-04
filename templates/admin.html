@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+{% block title %}Admin — Council of Alignment{% endblock %}
+
+{% block content %}
+<div class="admin-wrap">
+    <h1 style="font-family: var(--font-heading); margin-bottom: var(--space-3);">Admin Dashboard</h1>
+
+    <!-- Overview Cards -->
+    <div class="admin-cards">
+        <div class="admin-card">
+            <div class="admin-card-value">{{ total_users }}</div>
+            <div class="admin-card-label">Total Users</div>
+        </div>
+        <div class="admin-card">
+            <div class="admin-card-value">{{ total_sessions }}</div>
+            <div class="admin-card-label">Total Sessions</div>
+        </div>
+        <div class="admin-card">
+            <div class="admin-card-value">{{ total_convenes }}</div>
+            <div class="admin-card-label">Total Convenes</div>
+        </div>
+        <div class="admin-card">
+            <div class="admin-card-value">{{ active_7d }}</div>
+            <div class="admin-card-label">Active (7d)</div>
+        </div>
+        <div class="admin-card">
+            <div class="admin-card-value">{{ byok_users }}</div>
+            <div class="admin-card-label">BYOK Users</div>
+        </div>
+    </div>
+
+    <!-- Cost Summary -->
+    <div class="admin-section">
+        <h3>Cost Summary</h3>
+        <div class="admin-cost-grid">
+            <div>
+                <span class="dim">Tokens In:</span>
+                <strong>{{ "{:,}".format(cost.total_tokens_in) }}</strong>
+            </div>
+            <div>
+                <span class="dim">Tokens Out:</span>
+                <strong>{{ "{:,}".format(cost.total_tokens_out) }}</strong>
+            </div>
+            <div>
+                <span class="dim">Est. Cost:</span>
+                <strong>${{ "%.2f"|format(cost.total_cost) }}</strong>
+            </div>
+        </div>
+    </div>
+
+    <!-- Signup Trend -->
+    <div class="admin-section">
+        <h3>Signups (30 days)</h3>
+        {% if signups_by_day %}
+        {% set max_signups = signups_by_day | map(attribute='cnt') | max %}
+        <div class="admin-bar-chart">
+            {% for item in signups_by_day %}
+            <div class="admin-bar-col" title="{{ item.day }}: {{ item.cnt }}">
+                <div class="admin-bar" style="height: {{ (item.cnt / max_signups * 100) if max_signups > 0 else 0 }}%"></div>
+                <div class="admin-bar-label">{{ item.day[5:] }}</div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="dim">No signups in the last 30 days.</p>
+        {% endif %}
+    </div>
+
+    <!-- Session Trend -->
+    <div class="admin-section">
+        <h3>Sessions (30 days)</h3>
+        {% if sessions_by_day %}
+        {% set max_sessions = sessions_by_day | map(attribute='cnt') | max %}
+        <div class="admin-bar-chart">
+            {% for item in sessions_by_day %}
+            <div class="admin-bar-col" title="{{ item.day }}: {{ item.cnt }}">
+                <div class="admin-bar" style="height: {{ (item.cnt / max_sessions * 100) if max_sessions > 0 else 0 }}%; background: var(--chatgpt);"></div>
+                <div class="admin-bar-label">{{ item.day[5:] }}</div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="dim">No sessions in the last 30 days.</p>
+        {% endif %}
+    </div>
+
+    <!-- Recent Users -->
+    <div class="admin-section">
+        <h3>Recent Users</h3>
+        <div class="admin-table-wrap">
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th>User</th>
+                        <th>Joined</th>
+                        <th>Free Used</th>
+                        <th>BYOK</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for u in recent_users %}
+                    <tr>
+                        <td class="admin-user-cell">
+                            <img src="{{ u.avatar_url }}&s=28" alt="" class="admin-avatar">
+                            <span>{{ u.display_name }} <span class="dim">@{{ u.github_login }}</span></span>
+                        </td>
+                        <td>{{ u.created_at[:10] }}</td>
+                        <td>{{ u.free_convenes_used or 0 }}</td>
+                        <td>{% if u.has_byok %}Yes{% else %}-{% endif %}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Recent Sessions -->
+    <div class="admin-section">
+        <h3>Recent Sessions</h3>
+        <div class="admin-table-wrap">
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th>Title</th>
+                        <th>Lead</th>
+                        <th>User</th>
+                        <th>Created</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in recent_sessions %}
+                    <tr>
+                        <td><a href="/session/{{ s.id }}" style="color: var(--accent);">{{ s.title[:50] }}</a></td>
+                        <td><span class="orb" style="background: var(--{{ s.lead_model }}); display: inline-block; width: 10px; height: 10px; border-radius: 50%;"></span> {{ s.lead_model }}</td>
+                        <td>
+                            {% if s.github_login %}
+                            <span class="admin-user-cell-inline">
+                                <img src="{{ s.avatar_url }}&s=20" alt="" class="admin-avatar-sm">
+                                @{{ s.github_login }}
+                            </span>
+                            {% else %}
+                            <span class="dim">legacy</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ s.created_at[:10] }}</td>
+                        <td>{{ s.status }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
