@@ -8,10 +8,14 @@ import logging
 from fastapi import APIRouter, Request, HTTPException, Depends
 from fastapi.responses import JSONResponse
 from starlette.requests import Request
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from config import MODELS, get_council_models, BASE_URL
 from database import get_db
 from council_pipeline import run_council_review, acquire_lock, release_lock, is_locked
+
+limiter = Limiter(key_func=get_remote_address)
 
 logger = logging.getLogger(__name__)
 
@@ -169,6 +173,7 @@ async def send_message(session_id: str, request: Request):
 # ─── Convene ──────────────────────────────────────────────────
 
 @router.post("/sessions/{session_id}/convene", dependencies=[Depends(require_api_key)])
+@limiter.limit("3/minute")
 async def convene(session_id: str, request: Request):
     """Run a full Council review. Blocks 3-5 minutes."""
     sm, dispatcher, tracker, github_ctx = _get_shared(request)

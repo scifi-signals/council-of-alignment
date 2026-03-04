@@ -92,8 +92,12 @@ MAX_REQUEST_BODY = 10 * 1024 * 1024  # 10MB
 @app.middleware("http")
 async def limit_request_size(request: Request, call_next):
     content_length = request.headers.get("content-length")
-    if content_length and int(content_length) > MAX_REQUEST_BODY:
-        return JSONResponse({"error": "Request too large"}, status_code=413)
+    if content_length:
+        try:
+            if int(content_length) > MAX_REQUEST_BODY:
+                return JSONResponse({"error": "Request too large"}, status_code=413)
+        except ValueError:
+            return JSONResponse({"error": "Invalid Content-Length"}, status_code=400)
     return await call_next(request)
 
 
@@ -159,6 +163,7 @@ async def create_session(
     lead: str = Form(...),
 ):
     user_id = await require_auth_api(request)
+    title = title[:200]
     session = await sm.create_session(title, lead, user_id=user_id)
     return RedirectResponse(f"/session/{session['id']}", status_code=303)
 
@@ -392,6 +397,9 @@ async def auth_callback(request: Request, code: str = "", state: str = ""):
 
     # Redirect to where they were trying to go, or home
     next_url = request.session.pop("oauth_next", "/")
+    # Prevent open redirect — only allow relative paths on this domain
+    if not next_url.startswith("/") or next_url.startswith("//"):
+        next_url = "/"
     return RedirectResponse(next_url)
 
 
@@ -403,11 +411,11 @@ async def auth_logout(request: Request):
 
 
 async def _verify_session_owner(session_id: str, user_id: str) -> dict:
-    """Check that user owns the session. Legacy sessions (user_id=NULL) accessible to any logged-in user."""
+    """Check that user owns the session."""
     session = await sm.get_session(session_id)
     if not session:
         raise HTTPException(404, "Session not found")
-    if session.get("user_id") and session["user_id"] != user_id:
+    if session.get("user_id") != user_id:
         raise HTTPException(403, "Not your session")
     return session
 
@@ -467,8 +475,10 @@ async def api_upload(request: Request, session_id: str, file: UploadFile = File(
             # Skip large files
             if info.file_size > MAX_FILE_SIZE:
                 continue
-            # Skip hidden/build directories
+            # Skip hidden/build directories and path traversal attempts
             parts = info.filename.replace("\\", "/").split("/")
+            if any(p == ".." for p in parts):
+                continue
             if any(p in SKIP_DIRS for p in parts):
                 continue
             # Check extension
@@ -507,7 +517,7 @@ async def api_upload_file(request: Request, session_id: str, file: UploadFile = 
     user_id = await require_auth_api(request)
     await _verify_session_owner(session_id, user_id)
 
-    fname = file.filename or "unnamed"
+    fname = (file.filename or "unnamed").replace("\\", "/").split("/")[-1][:200]
     ext = "." + fname.rsplit(".", 1)[-1].lower() if "." in fname else ""
 
     TEXT_EXT = {
@@ -678,7 +688,7 @@ async def api_chat(session_id: str, request: Request):
     await _verify_session_owner(session_id, user_id)
 
     form = await request.form()
-    message = form.get("message", "").strip()
+    message = form.get("message", "").strip()[:50000]
     if not message:
         return HTMLResponse("")
 

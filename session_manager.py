@@ -83,7 +83,7 @@ class SessionManager:
         try:
             if user_id:
                 cursor = await db.execute(
-                    "SELECT * FROM sessions WHERE user_id = ? OR user_id IS NULL ORDER BY created_at DESC",
+                    "SELECT * FROM sessions WHERE user_id = ? ORDER BY created_at DESC",
                     (user_id,),
                 )
             else:
