@@ -24,9 +24,12 @@ if not SESSION_SECRET:
 BASE_URL = os.getenv("BASE_URL", "http://localhost:8890")
 
 # BYOK encryption key for storing user API keys at rest (Fernet symmetric encryption)
+# Supports key rotation: set ENCRYPTION_KEY to the current key and ENCRYPTION_KEY_OLD
+# to the previous key. MultiFernet will decrypt with either but encrypt with the current.
 ENCRYPTION_KEY = os.getenv("ENCRYPTION_KEY", "")
 if not ENCRYPTION_KEY:
     raise RuntimeError("ENCRYPTION_KEY not set. Generate one with: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\"")
+ENCRYPTION_KEY_OLD = os.getenv("ENCRYPTION_KEY_OLD", "")
 
 # Free tier: how many convenes a user gets before needing their own API key
 FREE_CONVENE_LIMIT = 3

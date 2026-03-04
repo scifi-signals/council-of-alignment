@@ -153,7 +153,7 @@ class ModelDispatcher:
                 result = await self.chat(model_key, messages, system=system_prompt, api_key_override=api_key_override)
                 return model_key, result
             except Exception as e:
-                return model_key, {"content": f"[Error from {MODELS[model_key]['name']}: {e}]", "tokens_in": 0, "tokens_out": 0, "cost": 0}
+                return model_key, {"content": f"[Error from {MODELS[model_key]['name']}: {type(e).__name__}]", "tokens_in": 0, "tokens_out": 0, "cost": 0}
 
         results = await asyncio.gather(*[_call(m) for m in council_models])
         return dict(results)

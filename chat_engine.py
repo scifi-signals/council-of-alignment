@@ -592,7 +592,7 @@ class ChatEngine:
 
             return context, loaded_filenames
         except Exception as e:
-            logger.warning("GitHub chat context failed: %s", e)
+            logger.warning("GitHub chat context failed: %s", type(e).__name__)
             return "", []
 
     async def get_design_state(self, session_id: str) -> str:

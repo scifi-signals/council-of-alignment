@@ -4,17 +4,36 @@ import uuid
 import secrets
 
 import httpx
-from cryptography.fernet import Fernet, InvalidToken
+from cryptography.fernet import Fernet, MultiFernet, InvalidToken
 from fastapi import Request
 from fastapi.responses import RedirectResponse
 from starlette.exceptions import HTTPException
 
-from config import GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, BASE_URL, ENCRYPTION_KEY, FREE_CONVENE_LIMIT, ADMIN_GITHUB_IDS
+from config import GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, BASE_URL, ENCRYPTION_KEY, ENCRYPTION_KEY_OLD, FREE_CONVENE_LIMIT, ADMIN_GITHUB_IDS
 from database import get_db
 
 # ─── BYOK key encryption helpers ────────────────────────────
 
-_fernet = Fernet(ENCRYPTION_KEY.encode())
+# MultiFernet: encrypts with the first (current) key, decrypts with any.
+# To rotate: generate new key, move current ENCRYPTION_KEY to ENCRYPTION_KEY_OLD,
+# set new key as ENCRYPTION_KEY. Old data still decrypts; new data uses new key.
+_fernet_keys = [Fernet(ENCRYPTION_KEY.encode())]
+if ENCRYPTION_KEY_OLD:
+    _fernet_keys.append(Fernet(ENCRYPTION_KEY_OLD.encode()))
+_fernet = MultiFernet(_fernet_keys)
+
+
+async def log_key_access(user_id: str, action: str, session_id: str = None) -> None:
+    """Record an audit log entry for API key access."""
+    db = await get_db()
+    try:
+        await db.execute(
+            "INSERT INTO key_access_log (user_id, session_id, action) VALUES (?, ?, ?)",
+            (user_id, session_id, action),
+        )
+        await db.commit()
+    finally:
+        await db.close()
 
 
 def encrypt_key(plaintext: str) -> str:

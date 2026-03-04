@@ -123,7 +123,7 @@ async def run_council_review(
                             f"```\n" + "\n".join(sorted(not_included)) + "\n```\n"
                         )
         except Exception as e:
-            logger.warning("GitHub auto-context failed: %s", e)
+            logger.warning("GitHub auto-context failed: %s", type(e).__name__)
 
     briefing = f"""## Design Review — Round {round_number}
 
@@ -180,7 +180,7 @@ Question everything. Find what's missing, not just what's present. If code is in
                 f"{gap_content}"
             )
     except Exception as e:
-        logger.warning("Lead AI gap scan failed: %s", e)
+        logger.warning("Lead AI gap scan failed: %s", type(e).__name__)
 
     # Save version + round
     version = await sm.save_version(session_id, raw_conversation, "council_review")

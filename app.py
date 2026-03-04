@@ -66,6 +66,7 @@ from auth import (
     get_or_create_user, get_current_user, require_auth, require_auth_api,
     generate_state, get_user_api_key, set_user_api_key, delete_user_api_key,
     increment_free_convenes, get_free_convenes_remaining, is_admin,
+    log_key_access,
 )
 
 
@@ -692,6 +693,8 @@ async def api_chat(session_id: str, request: Request):
 
     # Load user's BYOK key (if set, all API calls route through it)
     user_key = await get_user_api_key(user_id)
+    if user_key:
+        await log_key_access(user_id, "chat", session_id)
 
     # Always show the user message immediately
     user_html = f"""
@@ -756,6 +759,8 @@ async def api_convene(request: Request, session_id: str):
 
     # BYOK gating: check if user has their own key or free convenes remaining
     user_key = await get_user_api_key(user_id)
+    if user_key:
+        await log_key_access(user_id, "convene", session_id)
     if not user_key:
         remaining = await get_free_convenes_remaining(user_id)
         if remaining <= 0:
@@ -833,6 +838,8 @@ async def api_decide(session_id: str, request: Request):
     response_text = ""
     if accepted:
         user_key = await get_user_api_key(user_id)
+        if user_key:
+            await log_key_access(user_id, "decide", session_id)
         engine = get_engine()
         response_text = await engine.inject_synthesis(session_id, synthesis, accepted, rejected, api_key_override=user_key)
 
@@ -955,6 +962,7 @@ async def api_set_key(request: Request):
         return HTMLResponse('<div class="settings-error">Could not reach OpenRouter. Please try again.</div>', status_code=400)
 
     await set_user_api_key(user_id, api_key)
+    await log_key_access(user_id, "key_saved")
 
     # Return the "key is set" UI fragment
     masked = api_key[:6] + "..." + api_key[-4:]
@@ -975,6 +983,7 @@ async def api_delete_key(request: Request):
     """Remove the user's stored API key."""
     user_id = await require_auth_api(request)
     await delete_user_api_key(user_id)
+    await log_key_access(user_id, "key_deleted")
 
     html = '''
     <div class="key-status key-unset">
