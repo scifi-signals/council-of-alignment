@@ -446,6 +446,12 @@ button:disabled, .btn-disabled { opacity: 0.4; cursor: not-allowed; pointer-even
 .free-tier-cta a { color: var(--accent); font-weight: 600; text-decoration: none; }
 .free-tier-cta a:hover { text-decoration: underline; }
 
+/* Security list on settings page */
+.security-list { list-style: none; padding: 0; margin: 0; }
+.security-list li { font-size: 14px; line-height: 1.6; color: var(--text-secondary); padding: 6px 0 6px 24px; position: relative; }
+.security-list li::before { content: "\2713"; position: absolute; left: 0; color: var(--green); font-weight: 700; }
+.security-list li strong { color: var(--text-primary); }
+
 /* Responsive */
 @media (max-width: 768px) {
     .session-header { flex-wrap: wrap; height: auto; padding: var(--space-1) var(--space-2); }

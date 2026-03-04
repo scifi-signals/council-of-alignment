@@ -28,6 +28,9 @@
                         <button type="submit" class="btn btn-primary">Save Key</button>
                     </div>
                 </form>
+                <p class="dim" style="font-size: 12px; margin-top: 8px;">
+                    Your key is encrypted before storage and only used during your reviews.
+                </p>
             </div>
             {% endif %}
         </div>
@@ -68,6 +71,22 @@
         </p>
         <p style="font-size: 14px; line-height: 1.7; color: var(--text-secondary); margin-top: var(--space-1);">
             After signing up, go to <strong>Keys</strong> in your OpenRouter dashboard to create an API key, then paste it above.
+        </p>
+    </div>
+
+    <!-- Key Security Section -->
+    <div class="settings-section">
+        <h3>Key Security</h3>
+        <ul class="security-list">
+            <li><strong>Encrypted at rest</strong> — your key is encrypted with AES-256 before it touches the database. We never store it in plaintext.</li>
+            <li><strong>HTTPS only</strong> — all traffic between your browser and our server is encrypted in transit.</li>
+            <li><strong>Used only for your reviews</strong> — your key is decrypted only when you convene a Council review, then discarded from memory.</li>
+            <li><strong>Delete anytime</strong> — remove your key instantly from Settings. Once deleted, the encrypted data is gone.</li>
+            <li><strong>Access audited</strong> — every key operation is logged so we can detect unauthorized access.</li>
+        </ul>
+        <p class="dim" style="font-size: 13px; margin-top: var(--space-2);">
+            Tip: You can create a dedicated OpenRouter key with a spending limit just for the Council, and revoke it anytime from your
+            <a href="https://openrouter.ai/keys" target="_blank" rel="noopener" style="color: var(--accent);">OpenRouter dashboard</a>.
         </p>
     </div>
 </div>
