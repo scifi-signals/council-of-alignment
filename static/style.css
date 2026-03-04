@@ -452,6 +452,12 @@ button:disabled, .btn-disabled { opacity: 0.4; cursor: not-allowed; pointer-even
 .security-list li::before { content: "\2713"; position: absolute; left: 0; color: var(--green); font-weight: 700; }
 .security-list li strong { color: var(--text-primary); }
 
+/* Footer */
+.site-footer { padding: var(--space-4) var(--space-3); margin-top: var(--space-6); border-top: 1px solid var(--border-subtle); text-align: center; font-size: 13px; color: var(--text-muted); line-height: 1.8; }
+.site-footer a { color: var(--text-secondary); text-decoration: none; }
+.site-footer a:hover { color: var(--accent); }
+.footer-links { display: flex; justify-content: center; gap: var(--space-3); flex-wrap: wrap; }
+
 /* Responsive */
 @media (max-width: 768px) {
     .session-header { flex-wrap: wrap; height: auto; padding: var(--space-1) var(--space-2); }
