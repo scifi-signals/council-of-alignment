@@ -457,6 +457,19 @@ button:disabled, .btn-disabled { opacity: 0.4; cursor: not-allowed; pointer-even
 .site-footer a { color: var(--text-secondary); text-decoration: none; }
 .site-footer a:hover { color: var(--accent); }
 .footer-links { display: flex; justify-content: center; gap: var(--space-3); flex-wrap: wrap; }
+.footer-kofi { color: var(--grok) !important; }
+.footer-kofi:hover { opacity: 0.8; }
+
+/* Ko-fi / Support */
+.support-section { text-align: center; }
+.btn-kofi { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; background: var(--grok); color: #fff; border: none; border-radius: var(--radius); font-size: 14px; font-weight: 600; text-decoration: none; margin-top: var(--space-2); transition: opacity 0.15s; cursor: pointer; }
+.btn-kofi:hover { opacity: 0.85; }
+.btn-kofi svg { flex-shrink: 0; }
+
+/* Input extras (collapsible on small viewports) */
+.input-extras { display: flex; flex-direction: column; gap: var(--space-1); }
+.input-extras-toggle { display: none; background: none; border: none; cursor: pointer; color: var(--text-muted); font-size: 12px; font-family: var(--font-body); padding: 4px 0; align-items: center; gap: 4px; }
+.input-extras-toggle:hover { color: var(--text-secondary); }
 
 /* Responsive */
 @media (max-width: 768px) {
@@ -472,6 +485,23 @@ button:disabled, .btn-disabled { opacity: 0.4; cursor: not-allowed; pointer-even
     .timeline-node-circle { width: 30px; height: 30px; font-size: 11px; }
     .timeline-connector { width: 24px; }
     .attribution-label { min-width: 60px; font-size: 11px; }
+}
+
+/* Compact footer on short viewports (laptops) */
+@media (max-height: 700px) {
+    .input-extras { display: none; }
+    .input-extras.expanded { display: flex; }
+    .input-extras-toggle { display: flex; }
+    .convene-row { margin-bottom: 0; }
+    .convene-row .btn-convene { padding: 8px 16px; font-size: 14px; }
+    .convene-row .btn-export { padding: 8px 16px; font-size: 13px; }
+    .chat-input-bar { padding: var(--space-1) var(--space-2); }
+    .chat-input-inner textarea { font-size: 14px; padding: 8px var(--space-2); }
+}
+@media (max-height: 600px) {
+    .convene-row { gap: var(--space-1); }
+    .convene-row .btn-convene { padding: 6px 12px; font-size: 13px; }
+    .convene-row .btn-export { padding: 6px 12px; font-size: 12px; }
 }
 
 /* ── Landing Page ── */

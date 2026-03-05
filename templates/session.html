@@ -229,7 +229,7 @@ When you're ready, hit **Convene the Council** for independent reviews from a pa
                     <span class="free-tier-badge">{{ free_convenes_remaining }} free review{{ 's' if free_convenes_remaining != 1 else '' }} left</span>
                     {% endif %}
                     {% endif %}
-                    <a href="/api/export/{{ session.id }}" class="btn btn-export"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export the Results</a>
+                    <a href="/report/{{ session.id }}" target="_blank" class="btn btn-export"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2z"/><line x1="9" y1="7" x2="15" y2="7"/><line x1="9" y1="11" x2="15" y2="11"/><line x1="9" y1="15" x2="13" y2="15"/></svg> Export Report</a>
                 </div>
                 <form id="chat-form" onsubmit="return sendChat(event)">
                     <div class="chat-input-inner">
@@ -238,60 +238,66 @@ When you're ready, hit **Convene the Council** for independent reviews from a pa
                         <button type="submit" id="send-btn" class="btn btn-primary btn-send">Send</button>
                     </div>
                 </form>
-                <div class="file-upload-area">
-                    <label class="file-upload-btn" for="file-input">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
-                        Attach file to chat
-                    </label>
-                    <input type="file" id="file-input" style="display: none" accept=".md,.txt,.json,.py,.js,.html,.css,.yaml,.yml,.toml,.csv,.xml,.pdf,.docx" multiple>
-                    <span class="file-upload-name" id="file-name"></span>
-                    <span class="upload-separator">|</span>
-                    <label class="file-upload-btn upload-zip-btn" for="zip-input">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                        Upload codebase (.zip)
-                    </label>
-                    <input type="file" id="zip-input" style="display: none" accept=".zip">
-                </div>
-                <!-- GitHub repo connection -->
-                {% if github_enabled %}
-                <div class="github-repo-area" id="github-repo-area">
-                    {% if github_repo %}
-                    <div class="github-connected" id="github-connected">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
-                        <span class="github-repo-name">{{ github_repo.owner | e }}/{{ github_repo.repo_name | e }}</span>
-                        <span class="dim">({{ github_file_count }} files)</span>
-                        <button type="button" class="github-action-btn" onclick="refreshGitHub()" title="Refresh tree">&#8635;</button>
-                        <button type="button" class="github-action-btn github-disconnect-btn" onclick="disconnectGitHub()" title="Disconnect">&times;</button>
+                <div class="input-extras" id="input-extras">
+                    <div class="file-upload-area">
+                        <label class="file-upload-btn" for="file-input">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                            Attach file to chat
+                        </label>
+                        <input type="file" id="file-input" style="display: none" accept=".md,.txt,.json,.py,.js,.html,.css,.yaml,.yml,.toml,.csv,.xml,.pdf,.docx" multiple>
+                        <span class="file-upload-name" id="file-name"></span>
+                        <span class="upload-separator">|</span>
+                        <label class="file-upload-btn upload-zip-btn" for="zip-input">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                            Upload codebase (.zip)
+                        </label>
+                        <input type="file" id="zip-input" style="display: none" accept=".zip">
                     </div>
-                    {% else %}
-                    <div class="github-connect" id="github-connect">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
-                        <input type="text" id="github-url-input" placeholder="https://github.com/owner/repo" class="github-url-input">
-                        <button type="button" class="btn btn-secondary btn-sm" onclick="connectGitHub()">Connect</button>
-                    </div>
-                    {% endif %}
-                </div>
-                {% endif %}
-                <!-- Session attachments (collapsible) -->
-                <div class="attachments-area" id="attachments-area">
-                    {% if attachments %}
-                    <div class="attachments-list">
-                        <button class="attachments-toggle" onclick="toggleAttachments()" type="button">
-                            <span class="attachments-arrow" id="att-arrow">&#9654;</span>
-                            <span id="att-count-label">{{ attachments|length }} file{{ 's' if attachments|length != 1 else '' }} attached</span>
-                        </button>
-                        <div class="attachments-items" id="attachments-items">
-                            {% for att in attachments %}
-                            <div class="attachment-item" id="att-{{ att.id }}">
-                                <span class="attachment-name">{{ att.filename | e }}</span>
-                                <span class="attachment-size dim">{{ "%.1f KB"|format(att.size_bytes / 1024) if att.size_bytes else "0 B" }}</span>
-                                <button class="attachment-remove" onclick="removeAttachment('{{ att.id }}')" title="Remove">&times;</button>
-                            </div>
-                            {% endfor %}
+                    <!-- GitHub repo connection -->
+                    {% if github_enabled %}
+                    <div class="github-repo-area" id="github-repo-area">
+                        {% if github_repo %}
+                        <div class="github-connected" id="github-connected">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                            <span class="github-repo-name">{{ github_repo.owner | e }}/{{ github_repo.repo_name | e }}</span>
+                            <span class="dim">({{ github_file_count }} files)</span>
+                            <button type="button" class="github-action-btn" onclick="refreshGitHub()" title="Refresh tree">&#8635;</button>
+                            <button type="button" class="github-action-btn github-disconnect-btn" onclick="disconnectGitHub()" title="Disconnect">&times;</button>
                         </div>
+                        {% else %}
+                        <div class="github-connect" id="github-connect">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                            <input type="text" id="github-url-input" placeholder="https://github.com/owner/repo" class="github-url-input">
+                            <button type="button" class="btn btn-secondary btn-sm" onclick="connectGitHub()">Connect</button>
+                        </div>
+                        {% endif %}
                     </div>
                     {% endif %}
+                    <!-- Session attachments (collapsible) -->
+                    <div class="attachments-area" id="attachments-area">
+                        {% if attachments %}
+                        <div class="attachments-list">
+                            <button class="attachments-toggle" onclick="toggleAttachments()" type="button">
+                                <span class="attachments-arrow" id="att-arrow">&#9654;</span>
+                                <span id="att-count-label">{{ attachments|length }} file{{ 's' if attachments|length != 1 else '' }} attached</span>
+                            </button>
+                            <div class="attachments-items" id="attachments-items">
+                                {% for att in attachments %}
+                                <div class="attachment-item" id="att-{{ att.id }}">
+                                    <span class="attachment-name">{{ att.filename | e }}</span>
+                                    <span class="attachment-size dim">{{ "%.1f KB"|format(att.size_bytes / 1024) if att.size_bytes else "0 B" }}</span>
+                                    <button class="attachment-remove" onclick="removeAttachment('{{ att.id }}')" title="Remove">&times;</button>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
                 </div>
+                <button type="button" class="input-extras-toggle" id="input-extras-toggle" onclick="toggleInputExtras()">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+                    <span id="extras-toggle-label">More options</span>
+                </button>
             </div>
         </div>
         {% else %}
@@ -947,6 +953,15 @@ function showTimelineContent(show) {
     if (!content) return;
     content.style.display = show ? 'block' : 'none';
     if (arrow) arrow.classList.toggle('open', show);
+}
+
+// ─── Input extras toggle (compact footer) ────────────────
+function toggleInputExtras() {
+    const extras = document.getElementById('input-extras');
+    const label = document.getElementById('extras-toggle-label');
+    if (!extras) return;
+    const expanded = extras.classList.toggle('expanded');
+    if (label) label.textContent = expanded ? 'Less options' : 'More options';
 }
 
 // Init
