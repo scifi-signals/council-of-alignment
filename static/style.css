@@ -487,18 +487,16 @@ button:disabled, .btn-disabled { opacity: 0.4; cursor: not-allowed; pointer-even
     .attribution-label { min-width: 60px; font-size: 11px; }
 }
 
-/* Compact footer on short viewports (laptops) */
-@media (max-height: 700px) {
+/* Compact footer on laptops — most laptops have <900px viewport height after browser chrome */
+@media (max-height: 900px) {
     .input-extras { display: none; }
     .input-extras.expanded { display: flex; }
     .input-extras-toggle { display: flex; }
     .convene-row { margin-bottom: 0; }
-    .convene-row .btn-convene { padding: 8px 16px; font-size: 14px; }
-    .convene-row .btn-export { padding: 8px 16px; font-size: 13px; }
     .chat-input-bar { padding: var(--space-1) var(--space-2); }
     .chat-input-inner textarea { font-size: 14px; padding: 8px var(--space-2); }
 }
-@media (max-height: 600px) {
+@media (max-height: 650px) {
     .convene-row { gap: var(--space-1); }
     .convene-row .btn-convene { padding: 6px 12px; font-size: 13px; }
     .convene-row .btn-export { padding: 6px 12px; font-size: 12px; }

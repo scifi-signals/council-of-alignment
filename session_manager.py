@@ -261,6 +261,25 @@ class SessionManager:
         finally:
             await db.close()
 
+    async def get_all_syntheses(self, session_id: str) -> list[dict]:
+        """Get all syntheses for a session, ordered by round number."""
+        db = await get_db()
+        try:
+            cursor = await db.execute(
+                """SELECT sr.full_synthesis, rr.round_number FROM synthesis_results sr
+                   JOIN review_rounds rr ON sr.round_id = rr.id
+                   WHERE rr.session_id = ?
+                   ORDER BY rr.round_number""",
+                (session_id,),
+            )
+            rows = await cursor.fetchall()
+            return [
+                {"round_number": r["round_number"], "synthesis": json.loads(r["full_synthesis"])}
+                for r in rows
+            ]
+        finally:
+            await db.close()
+
     async def save_changelog_entry(self, session_id: str, round_number: int, change: dict, accepted: bool, rejection_reason: str = None) -> str:
         # Prefix with round number to avoid ID collisions across rounds
         # (synthesis generates generic IDs like change_001 each round)

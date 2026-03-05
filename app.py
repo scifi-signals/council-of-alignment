@@ -919,7 +919,7 @@ async def api_export(request: Request, session_id: str):
 
 @app.get("/report/{session_id}", response_class=HTMLResponse)
 async def report_page(request: Request, session_id: str):
-    """Printable report with all reviewer perspectives side-by-side."""
+    """Printable report with all rounds and reviewer perspectives side-by-side."""
     user = await get_current_user(request)
     if not user:
         request.session["oauth_next"] = f"/report/{session_id}"
@@ -929,181 +929,245 @@ async def report_page(request: Request, session_id: str):
     if not session:
         raise HTTPException(404, "Session not found")
 
-    synthesis = await sm.get_latest_synthesis(session_id)
-    round_number = await sm.get_round_number(session_id)
-    latest_round = round_number - 1
-    reviews = await sm.get_reviews(session_id, round_number=latest_round) if latest_round > 0 else []
+    all_syntheses = await sm.get_all_syntheses(session_id)
+    all_reviews = await sm.get_reviews(session_id)  # all rounds
+    total_rounds = len(all_syntheses)
 
-    if not synthesis and not reviews:
+    if not all_syntheses and not all_reviews:
         raise HTTPException(404, "No council review to export yet")
 
     from markupsafe import escape
     lead = session["lead_model"]
     lead_name = MODELS.get(lead, {}).get("name", "Claude")
 
-    # Build the report HTML
-    html = """<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>""" + str(escape(session["title"])) + """ — Council Report</title>
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=DM+Sans:wght@400;500;600;700&display=swap');
-:root {
-    --claude: #7C5CFF; --chatgpt: #1FD08C; --gemini: #4DA3FF; --grok: #FF9B42;
-    --text-primary: #1A1D23; --text-secondary: #5A6270; --text-muted: #8C95A4;
-    --border: rgba(0,0,0,0.12); --bg-light: #F7F8FA;
-}
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body { font-family: 'DM Sans', -apple-system, sans-serif; color: var(--text-primary); line-height: 1.7; max-width: 1100px; margin: 0 auto; padding: 32px 24px; }
-h1 { font-family: 'Source Serif 4', Georgia, serif; font-size: 1.8rem; margin-bottom: 4px; }
-.report-meta { color: var(--text-muted); font-size: 13px; margin-bottom: 32px; }
-h2 { font-family: 'Source Serif 4', Georgia, serif; font-size: 1.3rem; margin: 32px 0 16px; padding-bottom: 8px; border-bottom: 2px solid var(--border); }
-h3 { font-size: 1rem; margin: 16px 0 8px; }
-.model-label { display: inline-block; padding: 2px 10px; border-radius: 4px; font-size: 12px; font-weight: 600; border: 1px solid; }
-.model-label-claude { color: var(--claude); border-color: var(--claude); }
-.model-label-chatgpt { color: var(--chatgpt); border-color: var(--chatgpt); }
-.model-label-gemini { color: var(--gemini); border-color: var(--gemini); }
-.model-label-grok { color: var(--grok); border-color: var(--grok); }
-.synthesis-section { margin-bottom: 24px; }
-.synthesis-section h3 { color: var(--text-secondary); font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.5px; }
-.synthesis-section ul { padding-left: 20px; }
-.synthesis-section li { margin-bottom: 8px; }
-.reviewer-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
-.reviewer-panel { border: 1px solid var(--border); border-radius: 8px; padding: 20px; break-inside: avoid; }
-.reviewer-panel h3 { margin-top: 0; display: flex; align-items: center; gap: 8px; }
-.reviewer-body { font-size: 14px; white-space: pre-wrap; }
-.reviewer-body h1, .reviewer-body h2, .reviewer-body h3, .reviewer-body h4 { font-size: 1em; margin: 12px 0 6px; }
-.verdict { margin-top: 16px; padding: 16px; background: var(--bg-light); border-radius: 8px; text-align: center; }
-.badge { display: inline-block; padding: 4px 12px; border-radius: 4px; font-size: 12px; font-weight: 600; margin: 0 4px; }
-.badge-green { background: rgba(15,169,104,0.1); color: #0FA968; }
-.badge-red { background: rgba(220,53,69,0.1); color: #DC3545; }
-.badge-yellow { background: rgba(217,119,6,0.1); color: #D97706; }
-.changes-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 12px; }
-.changes-table th { text-align: left; padding: 8px; border-bottom: 2px solid var(--border); font-size: 12px; text-transform: uppercase; color: var(--text-secondary); }
-.changes-table td { padding: 8px; border-bottom: 1px solid rgba(0,0,0,0.06); vertical-align: top; }
-.back-link { display: inline-block; margin-bottom: 16px; color: var(--text-secondary); text-decoration: none; font-size: 13px; }
-.back-link:hover { color: var(--text-primary); }
-@media print {
-    body { padding: 0; max-width: none; }
-    .back-link, .no-print { display: none !important; }
-    .reviewer-grid { grid-template-columns: 1fr 1fr; }
-    .reviewer-panel { border: 1px solid #ccc; }
-    h2 { break-before: auto; }
-}
-@media (max-width: 768px) {
-    .reviewer-grid { grid-template-columns: 1fr; }
-}
-</style>
-</head>
-<body>
-<a href="/session/""" + session_id + """" class="back-link no-print">&larr; Back to session</a>
-<h1>""" + str(escape(session["title"])) + """</h1>
-<div class="report-meta">Council Review &mdash; Round """ + _to_roman(latest_round) + """ &bull; Lead: """ + str(escape(lead_name)) + """</div>
-"""
+    html = _build_report_html(session_id, session, lead_name, all_syntheses, all_reviews, total_rounds, escape)
+    return HTMLResponse(html)
 
-    # Synthesis section
-    if synthesis:
-        html += '<h2>Synthesis</h2>'
 
-        if synthesis.get("consensus"):
-            html += '<div class="synthesis-section"><h3>Points of Accord</h3><ul>'
-            for c in synthesis["consensus"]:
-                reviewers = ", ".join(c.get("reviewers", []))
-                html += f'<li>{escape(c["point"])} <span style="color:var(--text-muted);font-size:12px">({escape(reviewers)})</span></li>'
-            html += '</ul></div>'
+def _render_synthesis_html(synthesis: dict, escape) -> str:
+    """Render a single synthesis into HTML sections."""
+    html = ""
 
-        if synthesis.get("majority"):
-            html += '<div class="synthesis-section"><h3>Majority Position</h3><ul>'
-            for m in synthesis["majority"]:
-                for_list = ", ".join(m.get("for", []))
-                against_list = ", ".join(m.get("against", []))
-                html += f'<li>{escape(m["point"])} <span style="color:var(--text-muted);font-size:12px">(For: {escape(for_list)}'
-                if against_list:
-                    reasoning = m.get("against_reasoning", "")
-                    html += f' / Against: {escape(against_list)}'
-                    if reasoning:
-                        html += f' &mdash; {escape(reasoning)}'
-                html += ')</span></li>'
-            html += '</ul></div>'
+    if synthesis.get("consensus"):
+        html += '<div class="synthesis-section"><h3>Points of Accord</h3><ul>'
+        for c in synthesis["consensus"]:
+            reviewers = ", ".join(c.get("reviewers", []))
+            html += f'<li>{escape(c["point"])} <span class="source-tag">({escape(reviewers)})</span></li>'
+        html += '</ul></div>'
 
-        if synthesis.get("unique_insights"):
-            html += '<div class="synthesis-section"><h3>Lone Warnings</h3><ul>'
-            for u in synthesis["unique_insights"]:
-                html += f'<li>{escape(u["insight"])} <span style="color:var(--text-muted);font-size:12px">({escape(u["reviewer"])})</span></li>'
-            html += '</ul></div>'
+    if synthesis.get("majority"):
+        html += '<div class="synthesis-section"><h3>Majority Position</h3><ul>'
+        for m in synthesis["majority"]:
+            for_list = ", ".join(m.get("for", []))
+            against_list = ", ".join(m.get("against", []))
+            html += f'<li>{escape(m["point"])} <span class="source-tag">(For: {escape(for_list)}'
+            if against_list:
+                reasoning = m.get("against_reasoning", "")
+                html += f' / Against: {escape(against_list)}'
+                if reasoning:
+                    html += f' &mdash; {escape(reasoning)}'
+            html += ')</span></li>'
+        html += '</ul></div>'
 
-        if synthesis.get("disagreements"):
-            html += '<div class="synthesis-section"><h3>Points of Dissent</h3><ul>'
-            for d in synthesis["disagreements"]:
-                html += f'<li><strong>{escape(d["topic"])}</strong>'
-                for model, pos in d.get("positions", {}).items():
-                    model_info = MODELS.get(model.lower(), {})
-                    name = model_info.get("name", model)
-                    html += f'<br><span class="model-label model-label-{model.lower()}">{escape(name)}</span> {escape(pos)}'
-                html += '</li>'
-            html += '</ul></div>'
+    if synthesis.get("unique_insights"):
+        html += '<div class="synthesis-section"><h3>Lone Warnings</h3><ul>'
+        for u in synthesis["unique_insights"]:
+            html += f'<li>{escape(u["insight"])} <span class="source-tag">({escape(u["reviewer"])})</span></li>'
+        html += '</ul></div>'
 
-        if synthesis.get("overall_verdict"):
-            v = synthesis["overall_verdict"]
-            ready_class = "badge-green" if v.get("ready_to_build") else "badge-red"
-            ready_text = "Ready to build" if v.get("ready_to_build") else "Not ready yet"
-            round_class = "badge-yellow" if v.get("another_round_recommended") else "badge-green"
-            round_text = "Another round recommended" if v.get("another_round_recommended") else "No more rounds needed"
-            html += f'<div class="verdict"><span class="badge {ready_class}">{ready_text}</span> <span class="badge {round_class}">{round_text}</span>'
-            html += f'<p style="margin-top:8px">{escape(v.get("summary", ""))}</p></div>'
+    if synthesis.get("disagreements"):
+        html += '<div class="synthesis-section"><h3>Points of Dissent</h3><ul>'
+        for d in synthesis["disagreements"]:
+            html += f'<li><strong>{escape(d["topic"])}</strong>'
+            for model, pos in d.get("positions", {}).items():
+                model_info = MODELS.get(model.lower(), {})
+                name = model_info.get("name", model)
+                html += f'<br><span class="model-label model-label-{model.lower()}">{escape(name)}</span> {escape(pos)}'
+            html += '</li>'
+        html += '</ul></div>'
 
-    # Proposed changes
-    if synthesis and synthesis.get("proposed_changes"):
-        html += '<h2>Proposed Changes</h2>'
+    if synthesis.get("overall_verdict"):
+        v = synthesis["overall_verdict"]
+        ready_class = "badge-green" if v.get("ready_to_build") else "badge-red"
+        ready_text = "Ready to build" if v.get("ready_to_build") else "Not ready yet"
+        round_class = "badge-yellow" if v.get("another_round_recommended") else "badge-green"
+        round_text = "Another round recommended" if v.get("another_round_recommended") else "No more rounds needed"
+        html += f'<div class="verdict"><span class="badge {ready_class}">{ready_text}</span> <span class="badge {round_class}">{round_text}</span>'
+        html += f'<p style="margin-top:8px">{escape(v.get("summary", ""))}</p></div>'
+
+    if synthesis.get("proposed_changes"):
+        html += '<h3 style="margin-top:24px">Proposed Changes</h3>'
         html += '<table class="changes-table"><thead><tr><th>Change</th><th>Category</th><th>Confidence</th><th>Source</th></tr></thead><tbody>'
         for c in synthesis["proposed_changes"]:
             reviewers = ", ".join(c.get("source_reviewers", []))
             html += f'<tr><td>{escape(c["description"])}</td><td>{escape(c.get("category", ""))}</td><td>{escape(c.get("confidence", ""))}</td><td>{escape(reviewers)}</td></tr>'
         html += '</tbody></table>'
 
-    # Individual reviewer perspectives
-    if reviews:
-        html += '<h2>Individual Reviewer Perspectives</h2>'
-        html += '<div class="reviewer-grid">'
-        for r in reviews:
-            model_key = r["model_name"]
-            model_info = MODELS.get(model_key, {})
-            name = model_info.get("name", model_key)
-            html += f'<div class="reviewer-panel">'
-            html += f'<h3><span class="model-label model-label-{model_key}">{escape(name)}</span></h3>'
-            html += f'<div class="reviewer-body">{escape(r["response"])}</div>'
+    return html
+
+
+def _build_report_html(session_id: str, session: dict, lead_name: str,
+                       all_syntheses: list, all_reviews: list, total_rounds: int, escape) -> str:
+    """Build the full report HTML document."""
+    title_escaped = str(escape(session["title"]))
+    round_summary = f"{total_rounds} round{'s' if total_rounds != 1 else ''}" if total_rounds else "No reviews"
+
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{title_escaped} — Council Report</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=DM+Sans:wght@400;500;600;700&display=swap');
+:root {{
+    --claude: #7C5CFF; --chatgpt: #1FD08C; --gemini: #4DA3FF; --grok: #FF9B42;
+    --text-primary: #1A1D23; --text-secondary: #5A6270; --text-muted: #8C95A4;
+    --border: rgba(0,0,0,0.12); --bg-light: #F7F8FA;
+}}
+* {{ margin: 0; padding: 0; box-sizing: border-box; }}
+body {{ font-family: 'DM Sans', -apple-system, sans-serif; color: var(--text-primary); line-height: 1.7; max-width: 1100px; margin: 0 auto; padding: 32px 24px; }}
+h1 {{ font-family: 'Source Serif 4', Georgia, serif; font-size: 1.8rem; margin-bottom: 4px; }}
+.report-header {{ display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px; margin-bottom: 32px; }}
+.report-meta {{ color: var(--text-muted); font-size: 13px; }}
+.report-actions {{ display: flex; gap: 8px; flex-shrink: 0; }}
+.report-actions button {{ display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all 0.15s; }}
+.btn-print {{ background: #2D3748; color: white; border: none; }}
+.btn-print:hover {{ background: #1A202C; }}
+.btn-save {{ background: white; color: var(--text-primary); border: 1px solid var(--border); }}
+.btn-save:hover {{ background: var(--bg-light); }}
+h2 {{ font-family: 'Source Serif 4', Georgia, serif; font-size: 1.3rem; margin: 32px 0 16px; padding-bottom: 8px; border-bottom: 2px solid var(--border); }}
+h3 {{ font-size: 1rem; margin: 16px 0 8px; }}
+.round-divider {{ margin: 48px 0 32px; padding: 16px 0; border-top: 3px solid var(--border); }}
+.round-divider h2 {{ margin-top: 0; border-bottom: none; padding-bottom: 0; font-size: 1.5rem; }}
+.model-label {{ display: inline-block; padding: 2px 10px; border-radius: 4px; font-size: 12px; font-weight: 600; border: 1px solid; }}
+.model-label-claude {{ color: var(--claude); border-color: var(--claude); }}
+.model-label-chatgpt {{ color: var(--chatgpt); border-color: var(--chatgpt); }}
+.model-label-gemini {{ color: var(--gemini); border-color: var(--gemini); }}
+.model-label-grok {{ color: var(--grok); border-color: var(--grok); }}
+.source-tag {{ color: var(--text-muted); font-size: 12px; }}
+.synthesis-section {{ margin-bottom: 24px; }}
+.synthesis-section h3 {{ color: var(--text-secondary); font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.5px; }}
+.synthesis-section ul {{ padding-left: 20px; }}
+.synthesis-section li {{ margin-bottom: 8px; }}
+.reviewer-grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }}
+.reviewer-panel {{ border: 1px solid var(--border); border-radius: 8px; padding: 20px; break-inside: avoid; }}
+.reviewer-panel h3 {{ margin-top: 0; display: flex; align-items: center; gap: 8px; }}
+.reviewer-body {{ font-size: 14px; white-space: pre-wrap; }}
+.reviewer-body h1, .reviewer-body h2, .reviewer-body h3, .reviewer-body h4 {{ font-size: 1em; margin: 12px 0 6px; }}
+.verdict {{ margin-top: 16px; padding: 16px; background: var(--bg-light); border-radius: 8px; text-align: center; }}
+.badge {{ display: inline-block; padding: 4px 12px; border-radius: 4px; font-size: 12px; font-weight: 600; margin: 0 4px; }}
+.badge-green {{ background: rgba(15,169,104,0.1); color: #0FA968; }}
+.badge-red {{ background: rgba(220,53,69,0.1); color: #DC3545; }}
+.badge-yellow {{ background: rgba(217,119,6,0.1); color: #D97706; }}
+.changes-table {{ width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 12px; }}
+.changes-table th {{ text-align: left; padding: 8px; border-bottom: 2px solid var(--border); font-size: 12px; text-transform: uppercase; color: var(--text-secondary); }}
+.changes-table td {{ padding: 8px; border-bottom: 1px solid rgba(0,0,0,0.06); vertical-align: top; }}
+.back-link {{ display: inline-block; margin-bottom: 16px; color: var(--text-secondary); text-decoration: none; font-size: 13px; }}
+.back-link:hover {{ color: var(--text-primary); }}
+@media print {{
+    body {{ padding: 0; max-width: none; }}
+    .no-print {{ display: none !important; }}
+    .reviewer-grid {{ grid-template-columns: 1fr 1fr; }}
+    .reviewer-panel {{ border: 1px solid #ccc; }}
+    .round-divider {{ break-before: page; }}
+}}
+@media (max-width: 768px) {{
+    .reviewer-grid {{ grid-template-columns: 1fr; }}
+    .report-header {{ flex-direction: column; }}
+}}
+</style>
+</head>
+<body>
+<div class="no-print">
+    <a href="/session/{session_id}" class="back-link">&larr; Back to session</a>
+</div>
+<div class="report-header">
+    <div>
+        <h1>{title_escaped}</h1>
+        <div class="report-meta">Council Report &bull; {escape(round_summary)} &bull; Lead: {escape(lead_name)}</div>
+    </div>
+    <div class="report-actions no-print">
+        <button class="btn-print" onclick="window.print()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+            Print
+        </button>
+        <button class="btn-save" onclick="saveAsHTML()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Save HTML
+        </button>
+    </div>
+</div>
+"""
+
+    # Group reviews by round number
+    reviews_by_round: dict[int, list] = {}
+    for r in all_reviews:
+        rn = r["round_number"]
+        reviews_by_round.setdefault(rn, []).append(r)
+
+    # Render each round
+    for i, synth_entry in enumerate(all_syntheses):
+        round_num = synth_entry["round_number"]
+        synthesis = synth_entry["synthesis"]
+        round_reviews = reviews_by_round.get(round_num, [])
+        roman = _to_roman(round_num)
+
+        if i > 0:
+            html += '<div class="round-divider">'
+        else:
+            html += '<div>'
+
+        html += f'<h2>Round {roman} &mdash; Synthesis</h2>'
+        html += _render_synthesis_html(synthesis, escape)
+
+        if round_reviews:
+            html += f'<h2>Round {roman} &mdash; Individual Perspectives</h2>'
+            html += '<div class="reviewer-grid">'
+            for r in round_reviews:
+                model_key = r["model_name"]
+                model_info = MODELS.get(model_key, {})
+                name = model_info.get("name", model_key)
+                html += f'<div class="reviewer-panel">'
+                html += f'<h3><span class="model-label model-label-{model_key}">{escape(name)}</span></h3>'
+                html += f'<div class="reviewer-body">{escape(r["response"])}</div>'
+                html += '</div>'
             html += '</div>'
+
         html += '</div>'
 
     html += """
 <script>
-// Minimal markdown rendering for reviewer bodies
+// Markdown rendering for reviewer bodies
 document.querySelectorAll('.reviewer-body').forEach(el => {
     let text = el.textContent;
-    // Bold
     text = text.replace(/\\*\\*(.+?)\\*\\*/g, '<strong>$1</strong>');
-    // Italic
     text = text.replace(/\\*(.+?)\\*/g, '<em>$1</em>');
-    // Headers
     text = text.replace(/^#### (.+)$/gm, '<h4>$1</h4>');
     text = text.replace(/^### (.+)$/gm, '<h3>$1</h3>');
     text = text.replace(/^## (.+)$/gm, '<h2>$1</h2>');
     text = text.replace(/^# (.+)$/gm, '<h1>$1</h1>');
-    // List items
     text = text.replace(/^[\\-\\*] (.+)$/gm, '<li>$1</li>');
-    // Code blocks
     text = text.replace(/```[\\s\\S]*?```/g, match => '<pre><code>' + match.slice(3, -3).replace(/^\\w*\\n/, '') + '</code></pre>');
-    // Inline code
     text = text.replace(/`(.+?)`/g, '<code>$1</code>');
     el.innerHTML = text;
 });
+
+function saveAsHTML() {
+    const html = document.documentElement.outerHTML;
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = document.title.replace(/[^a-zA-Z0-9 _-]/g, '') + '.html';
+    a.click();
+    URL.revokeObjectURL(url);
+}
 </script>
 </body>
 </html>"""
 
-    return HTMLResponse(html)
+    return html
 
 
 @app.get("/api/cost")

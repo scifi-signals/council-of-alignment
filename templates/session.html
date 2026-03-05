@@ -296,7 +296,7 @@ When you're ready, hit **Convene the Council** for independent reviews from a pa
                 </div>
                 <button type="button" class="input-extras-toggle" id="input-extras-toggle" onclick="toggleInputExtras()">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
-                    <span id="extras-toggle-label">More options</span>
+                    <span id="extras-toggle-label">Attach files &amp; connect repo</span>
                 </button>
             </div>
         </div>
@@ -961,7 +961,7 @@ function toggleInputExtras() {
     const label = document.getElementById('extras-toggle-label');
     if (!extras) return;
     const expanded = extras.classList.toggle('expanded');
-    if (label) label.textContent = expanded ? 'Less options' : 'More options';
+    if (label) label.textContent = expanded ? 'Hide file options' : 'Attach files & connect repo';
 }
 
 // Init
