@@ -203,6 +203,16 @@
 
 {% elif sessions %}
 {# ── Sessions Grid (logged in, has sessions) ── #}
+{% if not user.has_api_key %}
+<div class="api-key-banner">
+    <div class="api-key-banner-inner">
+        <div class="api-key-banner-text">
+            <strong>Unlock unlimited reviews</strong> — add your <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">OpenRouter API key</a> in <a href="/settings">Settings</a> to keep reviewing after your free trial.
+        </div>
+        <a href="/settings" class="btn btn-primary btn-sm">Add API Key</a>
+    </div>
+</div>
+{% endif %}
 <div class="page-header">
     <div class="page-header-left">
         <h1>Design Sessions</h1>
@@ -237,6 +247,16 @@
 
 {% else %}
 {# ── Empty State (logged in, no sessions) ── #}
+{% if not user.has_api_key %}
+<div class="api-key-banner">
+    <div class="api-key-banner-inner">
+        <div class="api-key-banner-text">
+            <strong>Unlock unlimited reviews</strong> — add your <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">OpenRouter API key</a> in <a href="/settings">Settings</a> to keep reviewing after your free trial.
+        </div>
+        <a href="/settings" class="btn btn-primary btn-sm">Add API Key</a>
+    </div>
+</div>
+{% endif %}
 <div class="hero">
     <h1>Welcome to the Council</h1>
     <p class="hero-sub">Design with one AI. Get critical review from three others.</p>

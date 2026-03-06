@@ -475,6 +475,13 @@ button:disabled, .btn-disabled { opacity: 0.4; cursor: not-allowed; pointer-even
 .onboarding-note { font-size: 13px; color: var(--text-muted); margin-top: var(--space-3); text-align: center; }
 .onboarding-note a { color: var(--accent); }
 
+/* API key banner */
+.api-key-banner { background: var(--accent-light); border: 1px solid var(--accent)40; border-radius: var(--radius); padding: var(--space-2) var(--space-3); margin-bottom: var(--space-3); }
+.api-key-banner-inner { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+.api-key-banner-text { font-size: 14px; color: var(--text-primary); line-height: 1.5; }
+.api-key-banner-text a { color: var(--accent); font-weight: 500; }
+@media (max-width: 600px) { .api-key-banner-inner { flex-direction: column; align-items: flex-start; } }
+
 /* Legal pages */
 .legal-content h2 { font-family: var(--font-heading); font-size: 1.2em; margin: var(--space-4) 0 var(--space-1); color: var(--text-primary); }
 .legal-content h3 { font-size: 1em; font-weight: 600; margin: var(--space-3) 0 var(--space-1); color: var(--text-primary); }
