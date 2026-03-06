@@ -798,6 +798,22 @@ async def api_convene(request: Request, session_id: str):
         reviews_for_html = {k: {"content": v["content"]} for k, v in result["reviews"].items()}
         html = _build_council_html(session, reviews_for_html, result["synthesis"], result["round_number"])
         return HTMLResponse(html)
+    except Exception as e:
+        logger.error(f"Council review failed for session {session_id}: {e}", exc_info=True)
+        error_html = (
+            '<div class="convene-progress">'
+            '<h3>Council review failed</h3>'
+            '<p>The review couldn\'t be completed. This is usually temporary.</p>'
+            '<p><strong>What to try:</strong></p>'
+            '<ul>'
+            '<li>Wait 30 seconds and try again</li>'
+            '<li>If using your own API key, verify it\'s valid at <a href="https://openrouter.ai" target="_blank">openrouter.ai</a></li>'
+            '</ul>'
+            '<p class="dim" style="margin-top: 12px;">If this keeps happening, '
+            '<a href="https://github.com/scifi-signals/council-of-alignment/issues">open an issue</a>.</p>'
+            '</div>'
+        )
+        return HTMLResponse(error_html, status_code=500)
     finally:
         release_lock(session_id)
 
