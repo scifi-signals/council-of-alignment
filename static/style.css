@@ -490,7 +490,7 @@ button:disabled, .btn-disabled { opacity: 0.4; cursor: not-allowed; pointer-even
 .legal-content li { margin-bottom: 4px; }
 .legal-content code { background: var(--bg-elevated); padding: 1px 5px; border-radius: 3px; font-size: 13px; }
 
-/* Ko-fi / Support */
+/* Sponsor / Support */
 .support-section { text-align: center; }
 .btn-kofi { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; background: var(--grok); color: #fff; border: none; border-radius: var(--radius); font-size: 14px; font-weight: 600; text-decoration: none; margin-top: var(--space-2); transition: opacity 0.15s; cursor: pointer; }
 .btn-kofi:hover { opacity: 0.85; }
