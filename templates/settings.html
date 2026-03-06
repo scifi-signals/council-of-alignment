@@ -49,9 +49,9 @@
                 {% if user.has_api_key %}
                     You have your own API key, so reviews are unlimited.
                 {% elif user.free_convenes_remaining > 0 %}
-                    You have <strong>{{ user.free_convenes_remaining }}</strong> of 3 free reviews remaining.
+                    You have <strong>{{ user.free_convenes_remaining }}</strong> free review{{ 's' if user.free_convenes_remaining != 1 else '' }} remaining.
                 {% else %}
-                    You've used all 3 free reviews. Add your API key above to continue.
+                    You've used your free review. Add your API key above to continue.
                 {% endif %}
             </p>
         </div>

@@ -214,7 +214,7 @@ When you're ready, hit **Convene the Council** for independent reviews from a pa
                 <div class="convene-row">
                     {% if not has_api_key and free_convenes_remaining <= 0 %}
                     <div class="free-tier-cta">
-                        <p>You've used all 3 free reviews. <a href="/settings">Add your OpenRouter API key</a> to keep reviewing.</p>
+                        <p>You've used your free review. <a href="/settings">Add your OpenRouter API key</a> to keep reviewing.</p>
                     </div>
                     {% else %}
                     <button id="convene-btn" class="btn btn-convene" onclick="conveneCouncil()">

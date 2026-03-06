@@ -32,7 +32,7 @@ if not ENCRYPTION_KEY:
 ENCRYPTION_KEY_OLD = os.getenv("ENCRYPTION_KEY_OLD", "")
 
 # Free tier: how many convenes a user gets before needing their own API key
-FREE_CONVENE_LIMIT = 3
+FREE_CONVENE_LIMIT = 1
 
 # Admin dashboard: comma-separated GitHub user IDs that can access /admin
 _admin_ids_raw = os.getenv("ADMIN_GITHUB_IDS", "")

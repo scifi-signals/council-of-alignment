@@ -778,7 +778,7 @@ async def api_convene(request: Request, session_id: str):
             return HTMLResponse(
                 '<div class="convene-progress">'
                 '<h3>Free reviews used up</h3>'
-                '<p>You\'ve used all 3 free Council reviews.</p>'
+                '<p>You\'ve used your free Council review.</p>'
                 '<p>Add your own <a href="/settings" style="color: var(--accent); font-weight: 600;">OpenRouter API key</a> to keep reviewing.</p>'
                 '<p class="dim" style="margin-top: 12px;">OpenRouter lets you access multiple AI models with one key. Sign up free at openrouter.ai.</p>'
                 '</div>'
