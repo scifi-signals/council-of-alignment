@@ -472,11 +472,13 @@ button:disabled, .btn-disabled { opacity: 0.4; cursor: not-allowed; pointer-even
 .onboarding-number { width: 28px; height: 28px; min-width: 28px; border-radius: 50%; background: var(--accent-light); color: var(--accent); font-weight: 700; display: flex; align-items: center; justify-content: center; font-size: 14px; margin-top: 2px; }
 .onboarding-card strong { display: block; margin-bottom: 2px; color: var(--text-primary); font-size: 14px; }
 .onboarding-card p { font-size: 13px; color: var(--text-secondary); line-height: 1.5; margin: 0; }
+.onboarding-note { font-size: 13px; color: var(--text-muted); margin-top: var(--space-3); text-align: center; }
+.onboarding-note a { color: var(--accent); }
 
 /* Legal pages */
 .legal-content h2 { font-family: var(--font-heading); font-size: 1.2em; margin: var(--space-4) 0 var(--space-1); color: var(--text-primary); }
 .legal-content h3 { font-size: 1em; font-weight: 600; margin: var(--space-3) 0 var(--space-1); color: var(--text-primary); }
-.legal-content p, .legal-content li { font-size: 14px; line-height: 1.7; color: var(--text-secondary); }
+.legal-content p, .legal-content li { font-size: 14px; line-height: 1.7; color: var(--text-secondary); margin-bottom: var(--space-2); }
 .legal-content ul { padding-left: 20px; margin: var(--space-1) 0; }
 .legal-content li { margin-bottom: 4px; }
 .legal-content code { background: var(--bg-elevated); padding: 1px 5px; border-radius: 3px; font-size: 13px; }
