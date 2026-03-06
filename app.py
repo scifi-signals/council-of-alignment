@@ -4,6 +4,7 @@ import os
 import io
 import json
 import uuid
+import time
 import asyncio
 import logging
 import zipfile
@@ -89,6 +90,37 @@ async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
 MAX_REQUEST_BODY = 10 * 1024 * 1024  # 10MB
 
 
+# ─── Request tracking for health monitoring ─────────────────
+_concurrent_requests = 0
+_concurrent_peak = 0
+_active_convenes = 0
+_total_requests = 0
+_slow_requests = 0  # > 5s
+_start_time = time.time()
+
+
+@app.middleware("http")
+async def track_requests(request: Request, call_next):
+    global _concurrent_requests, _concurrent_peak, _total_requests, _slow_requests
+    _concurrent_requests += 1
+    _total_requests += 1
+    if _concurrent_requests > _concurrent_peak:
+        _concurrent_peak = _concurrent_requests
+    if _concurrent_requests > 10:
+        logger.warning(f"HIGH LOAD: {_concurrent_requests} concurrent requests")
+
+    start = time.time()
+    try:
+        response = await call_next(request)
+        elapsed = time.time() - start
+        if elapsed > 5.0:
+            _slow_requests += 1
+            logger.warning(f"SLOW REQUEST: {request.url.path} took {elapsed:.1f}s")
+        return response
+    finally:
+        _concurrent_requests -= 1
+
+
 @app.middleware("http")
 async def limit_request_size(request: Request, call_next):
     content_length = request.headers.get("content-length")
@@ -99,6 +131,24 @@ async def limit_request_size(request: Request, call_next):
         except ValueError:
             return JSONResponse({"error": "Invalid Content-Length"}, status_code=400)
     return await call_next(request)
+
+
+@app.get("/health")
+async def health_check():
+    """Lightweight health check — monitors load and can trigger alerts."""
+    uptime_hours = (time.time() - _start_time) / 3600
+    status = "ok"
+    if _concurrent_requests > 8:
+        status = "degraded"
+    return JSONResponse({
+        "status": status,
+        "concurrent_requests": _concurrent_requests,
+        "concurrent_peak": _concurrent_peak,
+        "active_convenes": _active_convenes,
+        "total_requests": _total_requests,
+        "slow_requests": _slow_requests,
+        "uptime_hours": round(uptime_hours, 1),
+    })
 
 
 BASE_DIR = os.path.dirname(__file__)
@@ -784,7 +834,10 @@ async def api_convene(request: Request, session_id: str):
                 '</div>'
             )
 
+    global _active_convenes
     try:
+        _active_convenes += 1
+        logger.info(f"Council review started (active: {_active_convenes})")
         result = await run_council_review(
             session_id, session, sm, dispatcher, tracker, github_ctx,
             api_key_override=user_key,
@@ -815,6 +868,7 @@ async def api_convene(request: Request, session_id: str):
         )
         return HTMLResponse(error_html, status_code=500)
     finally:
+        _active_convenes -= 1
         release_lock(session_id)
 
 
