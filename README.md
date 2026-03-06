@@ -39,8 +39,8 @@ Add the Council to Claude Code or any MCP client:
 {
   "mcpServers": {
     "council-of-alignment": {
-      "command": "npx",
-      "args": ["-y", "council-of-alignment-mcp"],
+      "command": "uvx",
+      "args": ["council-of-alignment"],
       "env": {
         "COUNCIL_API_KEY": "your-api-key"
       }
@@ -49,7 +49,9 @@ Add the Council to Claude Code or any MCP client:
 }
 ```
 
-Then from your IDE: create a session, add files, send messages, convene the council, and review results — all without leaving your editor.
+Get your API key from [Settings](https://council.stardreamgames.com/settings) after signing in.
+
+Then from your IDE, just say: "Have the Council review this project for security issues." The AI agent handles creating the session, attaching files, and convening the Council.
 
 ## Self-Hosting
 

@@ -34,6 +34,9 @@ ENCRYPTION_KEY_OLD = os.getenv("ENCRYPTION_KEY_OLD", "")
 # Free tier: how many convenes a user gets before needing their own API key
 FREE_CONVENE_LIMIT = 1
 
+# Demo session: publicly visible without auth (landing page "See an example")
+DEMO_SESSION_ID = os.getenv("DEMO_SESSION_ID", "")
+
 # Admin dashboard: comma-separated GitHub user IDs that can access /admin
 _admin_ids_raw = os.getenv("ADMIN_GITHUB_IDS", "")
 ADMIN_GITHUB_IDS: list[int] = [int(x.strip()) for x in _admin_ids_raw.split(",") if x.strip()]

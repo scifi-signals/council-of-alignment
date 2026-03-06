@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Privacy Policy — Council of Alignment{% endblock %}
+
+{% block content %}
+<div style="max-width: 720px; margin: 0 auto; padding: var(--space-4) var(--space-3);">
+    <h1 style="font-family: var(--font-heading); margin-bottom: var(--space-3);">Privacy Policy</h1>
+    <p class="dim" style="margin-bottom: var(--space-4);">Last updated: March 6, 2026</p>
+
+    <div class="legal-content">
+        <h2>What We Collect</h2>
+
+        <h3>From GitHub OAuth</h3>
+        <p>When you sign in, we receive your GitHub user ID, username, display name, and avatar URL. We use <code>read:user</code> scope only — we cannot access your repositories, code, organizations, or any other GitHub data.</p>
+
+        <h3>Content You Submit</h3>
+        <p>We store the messages, source files, and documents you upload to your review sessions. This data is stored in an encrypted database on our server and is only accessible to you (and server administrators for operational purposes).</p>
+
+        <h3>API Keys</h3>
+        <p>If you add an OpenRouter API key, it is encrypted with AES-256 (Fernet symmetric encryption) before storage. The plaintext key is never written to disk or logs. It is decrypted in memory only during your review sessions, then discarded. All key operations are recorded in an audit log.</p>
+
+        <h3>Personal API Keys</h3>
+        <p>If you generate a personal API key for MCP/REST access, we store only a SHA-256 hash — we cannot recover the plaintext key. If you lose it, generate a new one.</p>
+
+        <h2>How We Use Your Data</h2>
+        <ul>
+            <li><strong>To run the Service</strong> — your content is sent to AI model providers (via OpenRouter) for analysis during reviews</li>
+            <li><strong>To display your sessions</strong> — messages, reviews, and synthesis results are stored so you can access them later</li>
+            <li><strong>To authenticate you</strong> — GitHub profile data identifies your account</li>
+        </ul>
+
+        <h2>Third-Party AI Providers</h2>
+        <p>Your content is processed by AI models from Anthropic (Claude), OpenAI (ChatGPT), Google (Gemini), and xAI (Grok), routed through <a href="https://openrouter.ai/privacy" target="_blank" rel="noopener" style="color: var(--accent);">OpenRouter</a>. Each provider has its own data processing policies. We recommend reviewing them if you work with sensitive material.</p>
+
+        <h2>What We Don't Do</h2>
+        <ul>
+            <li>We don't sell your data</li>
+            <li>We don't use your content to train AI models</li>
+            <li>We don't track you with analytics or advertising pixels</li>
+            <li>We don't share your data with third parties beyond the AI providers needed to run reviews</li>
+        </ul>
+
+        <h2>Data Retention</h2>
+        <p>Your sessions and content are stored indefinitely unless you delete them. You can delete individual sessions from the sessions page. If you want all your data removed, contact us.</p>
+
+        <h2>Security</h2>
+        <ul>
+            <li>All traffic is encrypted via HTTPS (TLS)</li>
+            <li>API keys encrypted at rest with AES-256</li>
+            <li>Application runs as an unprivileged system user with sandboxed permissions</li>
+            <li>Database backed up daily to a private repository</li>
+            <li>SSH hardened, fail2ban active, all unnecessary ports closed</li>
+        </ul>
+
+        <h2>Your Rights</h2>
+        <p>You can:</p>
+        <ul>
+            <li>Delete your sessions and uploaded content at any time</li>
+            <li>Remove your API key at any time from Settings</li>
+            <li>Request full account deletion by emailing us</li>
+        </ul>
+
+        <h2>Contact</h2>
+        <p><a href="mailto:council@stardreamgames.com" style="color: var(--accent);">council@stardreamgames.com</a></p>
+    </div>
+</div>
+{% endblock %}

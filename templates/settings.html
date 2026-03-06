@@ -61,6 +61,50 @@
         </p>
     </div>
 
+    <!-- Personal API Key Section (MCP / REST API) -->
+    <div class="settings-section">
+        <h3>API Key (MCP / REST)</h3>
+        <p class="dim" style="margin-bottom: var(--space-2); font-size: 14px;">
+            Use this key to access the Council from Claude Code, Cursor, or the REST API.
+        </p>
+        <div id="personal-key-section">
+            {% if user.has_personal_key %}
+            <div class="key-status key-set">
+                <p class="key-status-text" style="color: var(--green);">API key is active.</p>
+                <div style="display: flex; gap: 8px; margin-top: 12px;">
+                    <form hx-post="/api/settings/personal-key" hx-target="#personal-key-section" hx-swap="innerHTML">
+                        <button type="submit" class="btn btn-secondary">Regenerate</button>
+                    </form>
+                    <form hx-post="/api/settings/personal-key/revoke" hx-target="#personal-key-section" hx-swap="innerHTML">
+                        <button type="submit" class="btn btn-secondary">Revoke</button>
+                    </form>
+                </div>
+            </div>
+            {% else %}
+            <div class="key-status key-unset">
+                <form hx-post="/api/settings/personal-key" hx-target="#personal-key-section" hx-swap="innerHTML">
+                    <button type="submit" class="btn btn-primary">Generate API Key</button>
+                </form>
+            </div>
+            {% endif %}
+        </div>
+        <details style="margin-top: var(--space-2);">
+            <summary class="dim" style="font-size: 13px; cursor: pointer;">MCP setup for Claude Code</summary>
+            <pre style="margin-top: 8px; padding: 12px; background: var(--bg-secondary); border-radius: 8px; font-size: 12px; overflow-x: auto;"><code>{
+  "mcpServers": {
+    "council-of-alignment": {
+      "command": "uvx",
+      "args": ["council-of-alignment"],
+      "env": {
+        "COUNCIL_API_KEY": "your-key-here"
+      }
+    }
+  }
+}</code></pre>
+            <p class="dim" style="font-size: 12px; margin-top: 4px;">Add to <code>~/.claude/settings.json</code>, then restart Claude Code.</p>
+        </details>
+    </div>
+
     <!-- What is OpenRouter Section -->
     <div class="settings-section">
         <h3>What is OpenRouter?</h3>

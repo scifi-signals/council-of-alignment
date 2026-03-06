@@ -1,6 +1,8 @@
 """GitHub OAuth authentication + user management."""
 
 import uuid
+import hmac
+import hashlib
 import secrets
 
 import httpx
@@ -120,6 +122,62 @@ async def get_free_convenes_remaining(user_id: str) -> int:
         await db.close()
 
 
+def _hash_api_key(key: str) -> str:
+    """SHA-256 hash of an API key for storage."""
+    return hashlib.sha256(key.encode()).hexdigest()
+
+
+async def generate_user_api_key(user_id: str) -> str:
+    """Generate a new personal API key for the user. Returns the plaintext key (shown once)."""
+    key = f"coa-{secrets.token_urlsafe(32)}"
+    key_hash = _hash_api_key(key)
+    db = await get_db()
+    try:
+        await db.execute(
+            "UPDATE users SET api_key_hash = ? WHERE id = ?",
+            (key_hash, user_id),
+        )
+        await db.commit()
+    finally:
+        await db.close()
+    return key
+
+
+async def revoke_user_api_key(user_id: str) -> None:
+    """Revoke the user's personal API key."""
+    db = await get_db()
+    try:
+        await db.execute(
+            "UPDATE users SET api_key_hash = NULL WHERE id = ?",
+            (user_id,),
+        )
+        await db.commit()
+    finally:
+        await db.close()
+
+
+async def get_user_by_api_key(key: str) -> dict | None:
+    """Look up a user by their personal API key. Returns user dict or None."""
+    key_hash = _hash_api_key(key)
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "SELECT * FROM users WHERE api_key_hash = ?", (key_hash,)
+        )
+        row = await cursor.fetchone()
+        if not row:
+            return None
+        return {
+            "id": row["id"],
+            "github_id": row["github_id"],
+            "github_login": row["github_login"],
+            "display_name": row["display_name"],
+            "avatar_url": row["avatar_url"],
+        }
+    finally:
+        await db.close()
+
+
 def is_admin(user: dict | None) -> bool:
     """Check if a user has admin access."""
     if not user:
@@ -233,6 +291,7 @@ async def get_user_by_id(user_id: str) -> dict | None:
             "free_convenes_used": used,
             "free_convenes_remaining": max(0, FREE_CONVENE_LIMIT - used),
             "has_api_key": bool(row["openrouter_key_encrypted"] if "openrouter_key_encrypted" in row.keys() else None),
+            "has_personal_key": bool(row["api_key_hash"] if "api_key_hash" in row.keys() else None),
         }
     finally:
         await db.close()

@@ -146,6 +146,10 @@ async def init_db():
             await db.execute("ALTER TABLE users ADD COLUMN free_convenes_used INTEGER DEFAULT 0")
         except Exception:
             pass  # Column already exists
+        try:
+            await db.execute("ALTER TABLE users ADD COLUMN api_key_hash TEXT")
+        except Exception:
+            pass  # Column already exists
         await db.commit()
 
 

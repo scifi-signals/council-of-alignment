@@ -5,7 +5,7 @@
 
 BACKUP_DIR="$HOME/council-backups"
 SSH_KEY="$HOME/.ssh/digitalocean"
-SERVER="root@159.203.126.156"
+SERVER="${COUNCIL_SERVER:-root@science-intel}"
 REMOTE_DB="/var/lib/council/council.db"
 DATE=$(date +%Y%m%d)
 

@@ -14,6 +14,7 @@ from slowapi.util import get_remote_address
 from config import MODELS, get_council_models, BASE_URL
 from database import get_db
 from council_pipeline import run_council_review, acquire_lock, release_lock, is_locked
+from auth import get_user_by_api_key, get_user_api_key, get_free_convenes_remaining, increment_free_convenes, is_admin
 
 limiter = Limiter(key_func=get_remote_address)
 
@@ -27,15 +28,25 @@ COUNCIL_API_KEY = os.getenv("COUNCIL_API_KEY", "")
 # ─── Auth dependency ──────────────────────────────────────────
 
 async def require_api_key(request: Request) -> None:
-    """Validate Bearer token against COUNCIL_API_KEY."""
-    if not COUNCIL_API_KEY:
-        raise HTTPException(503, "API key not configured on server")
+    """Validate Bearer token — accepts admin COUNCIL_API_KEY or per-user coa- keys."""
     auth = request.headers.get("Authorization", "")
     if not auth.startswith("Bearer "):
         raise HTTPException(401, "Missing Authorization: Bearer <key> header")
     token = auth[7:]
-    if not hmac.compare_digest(token, COUNCIL_API_KEY):
-        raise HTTPException(403, "Invalid API key")
+
+    # Check admin key first
+    if COUNCIL_API_KEY and hmac.compare_digest(token, COUNCIL_API_KEY):
+        request.state.api_user = None  # admin, no user context
+        return
+
+    # Check per-user key
+    if token.startswith("coa-"):
+        user = await get_user_by_api_key(token)
+        if user:
+            request.state.api_user = user
+            return
+
+    raise HTTPException(403, "Invalid API key")
 
 
 # ─── Helpers ──────────────────────────────────────────────────
@@ -48,6 +59,18 @@ def _get_shared(request: Request):
 
 def _session_url(session_id: str) -> str:
     return f"{BASE_URL}/session/{session_id}"
+
+
+async def _verify_api_session_owner(request: Request, session_id: str, sm):
+    """For per-user API keys, verify the user owns the session. Admin keys skip this."""
+    api_user = getattr(request.state, "api_user", None)
+    if not api_user:
+        return  # Admin key — full access
+    session = await sm.get_session(session_id)
+    if not session:
+        raise HTTPException(404, "Session not found")
+    if session.get("user_id") and session["user_id"] != api_user["id"]:
+        raise HTTPException(403, "You don't own this session")
 
 
 # ─── Health (no auth) ─────────────────────────────────────────
@@ -72,7 +95,9 @@ async def create_session(request: Request):
         raise HTTPException(400, "Invalid lead_model")
 
     council_models = get_council_models(lead_model)
-    session = await sm.create_session(title, lead_model, user_id=None)
+    api_user = getattr(request.state, "api_user", None)
+    user_id = api_user["id"] if api_user else None
+    session = await sm.create_session(title, lead_model, user_id=user_id)
 
     return JSONResponse({
         "session_id": session["id"],
@@ -87,7 +112,9 @@ async def create_session(request: Request):
 async def list_sessions(request: Request):
     """List recent sessions."""
     sm, *_ = _get_shared(request)
-    sessions = await sm.list_sessions()
+    api_user = getattr(request.state, "api_user", None)
+    user_id = api_user["id"] if api_user else None
+    sessions = await sm.list_sessions(user_id=user_id) if user_id else await sm.list_sessions()
     return JSONResponse({
         "sessions": [
             {
@@ -108,6 +135,7 @@ async def list_sessions(request: Request):
 async def add_files(session_id: str, request: Request):
     """Attach source files to a session."""
     sm, *_ = _get_shared(request)
+    await _verify_api_session_owner(request, session_id, sm)
 
     session = await sm.get_session(session_id)
     if not session:
@@ -149,6 +177,7 @@ async def add_files(session_id: str, request: Request):
 async def send_message(session_id: str, request: Request):
     """Send a message to the Lead AI."""
     sm, dispatcher, tracker, github_ctx = _get_shared(request)
+    await _verify_api_session_owner(request, session_id, sm)
 
     session = await sm.get_session(session_id)
     if not session:
@@ -177,6 +206,7 @@ async def send_message(session_id: str, request: Request):
 async def convene(session_id: str, request: Request):
     """Run a full Council review. Blocks 3-5 minutes."""
     sm, dispatcher, tracker, github_ctx = _get_shared(request)
+    await _verify_api_session_owner(request, session_id, sm)
 
     if not acquire_lock(session_id):
         raise HTTPException(409, "Council already in session for this review")
@@ -186,10 +216,28 @@ async def convene(session_id: str, request: Request):
         release_lock(session_id)
         raise HTTPException(404, "Session not found")
 
+    # BYOK + free tier gating for per-user API keys
+    api_user = getattr(request.state, "api_user", None)
+    user_key = None
+    if api_user:
+        user_key = await get_user_api_key(api_user["id"])
+        user_is_admin = is_admin(api_user)
+        if not user_key and not user_is_admin:
+            remaining = await get_free_convenes_remaining(api_user["id"])
+            if remaining <= 0:
+                release_lock(session_id)
+                raise HTTPException(402, "Free reviews used up. Add your OpenRouter API key at /settings to continue.")
+
     try:
         result = await run_council_review(
-            session_id, session, sm, dispatcher, tracker, github_ctx
+            session_id, session, sm, dispatcher, tracker, github_ctx,
+            api_key_override=user_key,
         )
+
+        # Increment free convene counter for non-BYOK, non-admin users
+        if api_user and not user_key and not is_admin(api_user):
+            await increment_free_convenes(api_user["id"])
+
         result["web_url"] = _session_url(session_id)
         return JSONResponse(result)
     finally:
@@ -202,6 +250,7 @@ async def convene(session_id: str, request: Request):
 async def get_results(session_id: str, request: Request):
     """Get the latest synthesis and reviews for a session."""
     sm, *_ = _get_shared(request)
+    await _verify_api_session_owner(request, session_id, sm)
 
     session = await sm.get_session(session_id)
     if not session:
@@ -231,6 +280,7 @@ async def get_results(session_id: str, request: Request):
 async def decide(session_id: str, request: Request):
     """Accept/reject proposed changes."""
     sm, dispatcher, tracker, github_ctx = _get_shared(request)
+    await _verify_api_session_owner(request, session_id, sm)
 
     session = await sm.get_session(session_id)
     if not session:

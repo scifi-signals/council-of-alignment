@@ -433,6 +433,10 @@ button:disabled, .btn-disabled { opacity: 0.4; cursor: not-allowed; pointer-even
 .key-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); }
 .key-masked code { background: var(--bg-elevated); padding: 4px 10px; border-radius: var(--radius); font-size: 14px; letter-spacing: 0.5px; }
 .key-status-text { font-size: 14px; margin-top: var(--space-1); }
+.key-generated-warning { background: rgba(255,152,0,0.1); border: 1px solid rgba(255,152,0,0.3); border-radius: var(--radius); padding: 8px 12px; margin-bottom: 12px; font-size: 13px; color: var(--text-primary); }
+.key-display { display: flex; align-items: center; gap: 8px; background: var(--bg-primary); border: 1px solid var(--border-medium); border-radius: var(--radius); padding: 10px 12px; }
+.key-display code { flex: 1; font-size: 13px; word-break: break-all; color: var(--text-primary); }
+.btn-sm { padding: 4px 10px; font-size: 12px; }
 .free-tier-status { padding: var(--space-2) 0; }
 .free-tier-dots { display: flex; gap: 8px; margin-bottom: var(--space-1); }
 .free-tier-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--green); border: 2px solid var(--green-border); transition: all 0.2s; }
@@ -459,6 +463,23 @@ button:disabled, .btn-disabled { opacity: 0.4; cursor: not-allowed; pointer-even
 .footer-links { display: flex; justify-content: center; gap: var(--space-3); flex-wrap: wrap; }
 .footer-kofi { color: var(--grok) !important; }
 .footer-kofi:hover { opacity: 0.8; }
+
+/* Onboarding */
+.onboarding-tips { max-width: 640px; margin: var(--space-4) auto 0; }
+.onboarding-tips h3 { font-family: var(--font-heading); font-size: 1.1em; margin-bottom: var(--space-3); color: var(--text-secondary); }
+.onboarding-grid { display: flex; flex-direction: column; gap: var(--space-2); }
+.onboarding-card { display: flex; gap: var(--space-2); padding: var(--space-2) var(--space-3); background: var(--bg-secondary); border: 1px solid var(--border-subtle); border-radius: var(--radius); }
+.onboarding-number { width: 28px; height: 28px; min-width: 28px; border-radius: 50%; background: var(--accent-light); color: var(--accent); font-weight: 700; display: flex; align-items: center; justify-content: center; font-size: 14px; margin-top: 2px; }
+.onboarding-card strong { display: block; margin-bottom: 2px; color: var(--text-primary); font-size: 14px; }
+.onboarding-card p { font-size: 13px; color: var(--text-secondary); line-height: 1.5; margin: 0; }
+
+/* Legal pages */
+.legal-content h2 { font-family: var(--font-heading); font-size: 1.2em; margin: var(--space-4) 0 var(--space-1); color: var(--text-primary); }
+.legal-content h3 { font-size: 1em; font-weight: 600; margin: var(--space-3) 0 var(--space-1); color: var(--text-primary); }
+.legal-content p, .legal-content li { font-size: 14px; line-height: 1.7; color: var(--text-secondary); }
+.legal-content ul { padding-left: 20px; margin: var(--space-1) 0; }
+.legal-content li { margin-bottom: 4px; }
+.legal-content code { background: var(--bg-elevated); padding: 1px 5px; border-radius: 3px; font-size: 13px; }
 
 /* Ko-fi / Support */
 .support-section { text-align: center; }
@@ -515,7 +536,8 @@ button:disabled, .btn-disabled { opacity: 0.4; cursor: not-allowed; pointer-even
 .landing-badge { display: inline-block; padding: 6px 16px; border-radius: 99px; font-size: 13px; font-weight: 600; letter-spacing: 0.3px; background: var(--accent-light); color: var(--accent); margin-bottom: var(--space-2); }
 .landing-headline { font-family: var(--font-heading); font-size: 3rem; font-weight: 700; letter-spacing: -1px; margin-bottom: var(--space-2); line-height: 1.1; }
 .landing-tagline { font-size: 1.15rem; color: var(--text-secondary); max-width: 520px; margin: 0 auto var(--space-3); line-height: 1.7; }
-.landing-hero .btn-login { margin-bottom: var(--space-4); }
+.landing-hero .btn-login { margin-bottom: 0; }
+.landing-hero-buttons { display: flex; gap: var(--space-2); align-items: center; margin-bottom: var(--space-4); flex-wrap: wrap; justify-content: center; }
 .landing-hero .hero-image { display: block; width: 100%; max-width: 640px; margin: 0 auto; border-radius: var(--radius-xl); box-shadow: var(--shadow-lg); }
 
 /* B. How It Works — steps */

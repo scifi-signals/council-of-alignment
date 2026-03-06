@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Terms of Service — Council of Alignment{% endblock %}
+
+{% block content %}
+<div style="max-width: 720px; margin: 0 auto; padding: var(--space-4) var(--space-3);">
+    <h1 style="font-family: var(--font-heading); margin-bottom: var(--space-3);">Terms of Service</h1>
+    <p class="dim" style="margin-bottom: var(--space-4);">Last updated: March 6, 2026</p>
+
+    <div class="legal-content">
+        <h2>1. What This Service Does</h2>
+        <p>Council of Alignment ("the Service") is a multi-model AI design review tool. You chat with a Lead AI, then convene a council of independent AI reviewers for structured analysis. The Service is operated by SciFi Signals.</p>
+
+        <h2>2. Account &amp; Access</h2>
+        <p>You sign in with your GitHub account. We use GitHub OAuth with <code>read:user</code> scope — we only access your public profile (username, display name, avatar). We do not access your repositories, code, or any other GitHub data through this login.</p>
+        <p>You are responsible for maintaining the security of your account. Do not share your personal API key.</p>
+
+        <h2>3. Your Content</h2>
+        <p><strong>You own everything you upload.</strong> Source code, design documents, and messages you submit remain yours. We do not claim any ownership or license over your content beyond what's needed to operate the Service (processing it through AI models, storing session history for your access).</p>
+        <p>Your content is sent to third-party AI providers (Anthropic, OpenAI, Google, xAI) via OpenRouter for analysis. These providers have their own terms regarding data processing. We recommend reviewing their policies if you are submitting sensitive material.</p>
+        <p><strong>Do not upload secrets, credentials, API keys, passwords, or personally identifiable information of others.</strong> While we take security seriously, AI model providers process your content and we cannot guarantee how they handle it.</p>
+
+        <h2>4. Free Tier &amp; BYOK</h2>
+        <p>The free tier provides a limited number of council reviews using server credits. After that, you can add your own OpenRouter API key ("Bring Your Own Key") for unlimited reviews billed to your OpenRouter account.</p>
+        <p>We may adjust free tier limits at any time.</p>
+
+        <h2>5. API Keys You Provide</h2>
+        <p>If you add an OpenRouter API key, it is encrypted at rest using AES-256 (Fernet) and only decrypted during your reviews. We do not log, share, or use your key for any purpose other than making API calls on your behalf during your sessions. You can delete your key at any time from Settings.</p>
+
+        <h2>6. Acceptable Use</h2>
+        <p>Don't use the Service to:</p>
+        <ul>
+            <li>Generate malicious code, malware, or exploit tools</li>
+            <li>Abuse or overload the Service (automated scraping, denial of service)</li>
+            <li>Circumvent rate limits or access controls</li>
+            <li>Upload illegal content</li>
+        </ul>
+        <p>We reserve the right to suspend accounts that violate these terms.</p>
+
+        <h2>7. Availability &amp; Liability</h2>
+        <p>The Service is provided "as is" without warranty. We do our best to keep it running but make no uptime guarantees. AI-generated reviews may contain errors — they are suggestions, not guarantees. You are responsible for evaluating and acting on any recommendations.</p>
+        <p>We are not liable for any damages arising from your use of the Service, including but not limited to bugs introduced by following AI suggestions, data loss, or service interruptions.</p>
+
+        <h2>8. Changes</h2>
+        <p>We may update these terms. Continued use after changes constitutes acceptance. We'll note the date of the last update at the top of this page.</p>
+
+        <h2>9. Contact</h2>
+        <p>Questions? <a href="mailto:council@stardreamgames.com" style="color: var(--accent);">council@stardreamgames.com</a></p>
+    </div>
+</div>
+{% endblock %}

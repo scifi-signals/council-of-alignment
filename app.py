@@ -49,7 +49,7 @@ try:
 except ImportError:
     logger.warning("PyPDF2 not installed — .pdf uploads disabled")
 
-from config import MODELS, get_council_models, GITHUB_TOKEN, SESSION_SECRET, GITHUB_CLIENT_ID
+from config import MODELS, get_council_models, GITHUB_TOKEN, SESSION_SECRET, GITHUB_CLIENT_ID, DEMO_SESSION_ID
 from database import init_db, get_db
 from dispatcher import ModelDispatcher
 from chat_engine import ChatEngine
@@ -221,7 +221,8 @@ async def create_session(
 @app.get("/session/{session_id}", response_class=HTMLResponse)
 async def session_page(request: Request, session_id: str):
     user = await get_current_user(request)
-    if not user:
+    is_demo = DEMO_SESSION_ID and session_id == DEMO_SESSION_ID
+    if not user and not is_demo:
         request.session["oauth_next"] = f"/session/{session_id}"
         return RedirectResponse("/auth/login", status_code=302)
     session = await sm.get_session(session_id)
@@ -311,9 +312,10 @@ async def session_page(request: Request, session_id: str):
         # Owner if: session has no user_id (legacy) or user_id matches
         is_owner = not session.get("user_id") or session["user_id"] == user["id"]
 
-    # Free tier info for BYOK UX
-    free_convenes_remaining = user.get("free_convenes_remaining", 3) if user else 0
-    has_api_key = user.get("has_api_key", False) if user else False
+    # Free tier info for BYOK UX — admins bypass all limits
+    user_is_admin = is_admin(user) if user else False
+    free_convenes_remaining = 999 if user_is_admin else (user.get("free_convenes_remaining", 3) if user else 0)
+    has_api_key = True if user_is_admin else (user.get("has_api_key", False) if user else False)
 
     return templates.TemplateResponse("session.html", await _ctx(
         request,
@@ -342,6 +344,23 @@ async def session_page(request: Request, session_id: str):
 async def stats_page(request: Request):
     stats = await tracker.get_stats()
     return templates.TemplateResponse("stats.html", await _ctx(request, stats=stats))
+
+
+@app.get("/demo", response_class=HTMLResponse)
+async def demo_redirect(request: Request):
+    if not DEMO_SESSION_ID:
+        raise HTTPException(404, "No demo session configured")
+    return RedirectResponse(f"/session/{DEMO_SESSION_ID}", status_code=302)
+
+
+@app.get("/terms", response_class=HTMLResponse)
+async def terms_page(request: Request):
+    return templates.TemplateResponse("terms.html", await _ctx(request))
+
+
+@app.get("/privacy", response_class=HTMLResponse)
+async def privacy_page(request: Request):
+    return templates.TemplateResponse("privacy.html", await _ctx(request))
 
 
 @app.get("/admin", response_class=HTMLResponse)
@@ -577,7 +596,7 @@ async def api_upload_file(request: Request, session_id: str, file: UploadFile = 
     }
     allowed = TEXT_EXT | set(BINARY_EXTRACTORS.keys())
     if ext not in allowed:
-        return HTMLResponse(f'<div class="attachment-error">Unsupported file type: {ext}</div>', status_code=400)
+        return HTMLResponse(f'<div class="attachment-error">Unsupported file type: {_escape(ext)}</div>', status_code=400)
 
     data = await file.read()
     if len(data) > 500_000:
@@ -627,7 +646,8 @@ async def api_delete_attachment(request: Request, attachment_id: str):
 @app.get("/api/attachments/{session_id}")
 async def api_get_attachments(request: Request, session_id: str):
     """Return HTML fragment of current attachments."""
-    await require_auth_api(request)
+    user_id = await require_auth_api(request)
+    await _verify_session_owner(session_id, user_id)
     db = await get_db()
     try:
         cursor = await db.execute(
@@ -818,10 +838,13 @@ async def api_convene(request: Request, session_id: str):
         raise HTTPException(404)
 
     # BYOK gating: check if user has their own key or free convenes remaining
+    # Admins bypass all limits
+    user = await get_current_user(request)
+    user_is_admin = is_admin(user)
     user_key = await get_user_api_key(user_id)
     if user_key:
         await log_key_access(user_id, "convene", session_id)
-    if not user_key:
+    if not user_key and not user_is_admin:
         remaining = await get_free_convenes_remaining(user_id)
         if remaining <= 0:
             release_lock(session_id)
@@ -843,8 +866,8 @@ async def api_convene(request: Request, session_id: str):
             api_key_override=user_key,
         )
 
-        # If using server key (no BYOK), increment the free convene counter
-        if not user_key:
+        # If using server key (no BYOK) and not admin, increment the free convene counter
+        if not user_key and not user_is_admin:
             await increment_free_convenes(user_id)
 
         # Reconstruct full review data for HTML (pipeline returns content-only)
@@ -983,7 +1006,7 @@ async def api_export(request: Request, session_id: str):
     return Response(
         content=combined,
         media_type="text/markdown",
-        headers={"Content-Disposition": f'attachment; filename="{session["title"]}-export.md"'},
+        headers={"Content-Disposition": f'attachment; filename="{session["title"].replace(chr(34), "").replace(chr(10), " ").replace(chr(13), " ")[:100]}-export.md"'},
     )
 
 
@@ -991,9 +1014,12 @@ async def api_export(request: Request, session_id: str):
 async def report_page(request: Request, session_id: str):
     """Printable report with all rounds and reviewer perspectives side-by-side."""
     user = await get_current_user(request)
-    if not user:
+    is_demo = DEMO_SESSION_ID and session_id == DEMO_SESSION_ID
+    if not user and not is_demo:
         request.session["oauth_next"] = f"/report/{session_id}"
         return RedirectResponse("/auth/login", status_code=302)
+    if user and not is_demo:
+        await _verify_session_owner(session_id, user["id"])
 
     session = await sm.get_session(session_id)
     if not session:
@@ -1207,6 +1233,7 @@ h3 {{ font-size: 1rem; margin: 16px 0 8px; }}
         html += '</div>'
 
     html += """
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
 <script>
 // Markdown rendering for reviewer bodies
 document.querySelectorAll('.reviewer-body').forEach(el => {
@@ -1220,7 +1247,7 @@ document.querySelectorAll('.reviewer-body').forEach(el => {
     text = text.replace(/^[\\-\\*] (.+)$/gm, '<li>$1</li>');
     text = text.replace(/```[\\s\\S]*?```/g, match => '<pre><code>' + match.slice(3, -3).replace(/^\\w*\\n/, '') + '</code></pre>');
     text = text.replace(/`(.+?)`/g, '<code>$1</code>');
-    el.innerHTML = text;
+    el.innerHTML = DOMPurify.sanitize(text);
 });
 
 function saveAsHTML() {
@@ -1250,7 +1277,8 @@ async def api_cost(request: Request):
 @app.get("/api/timeline/{session_id}")
 async def api_timeline(request: Request, session_id: str):
     """Get evolution timeline data for a session."""
-    await require_auth_api(request)
+    user_id = await require_auth_api(request)
+    await _verify_session_owner(session_id, user_id)
     session = await sm.get_session(session_id)
     if not session:
         raise HTTPException(404, "Session not found")
@@ -1332,6 +1360,51 @@ async def api_delete_key(request: Request):
     return HTMLResponse(html)
 
 
+# ─── Personal API Key (for MCP / REST API) ───────────────────
+
+@app.post("/api/settings/personal-key")
+@limiter.limit("5/minute")
+async def api_generate_personal_key(request: Request):
+    """Generate a new personal API key for MCP/REST API access."""
+    user_id = await require_auth_api(request)
+    from auth import generate_user_api_key
+    key = await generate_user_api_key(user_id)
+
+    html = f'''
+    <div class="key-status key-set">
+        <div class="key-generated-warning">
+            <strong>Copy this key now</strong> — it won't be shown again.
+        </div>
+        <div class="key-display">
+            <code id="personal-key-value">{key}</code>
+            <button class="btn btn-secondary btn-sm" onclick="navigator.clipboard.writeText(document.getElementById('personal-key-value').textContent).then(()=>this.textContent='Copied!')">Copy</button>
+        </div>
+        <form hx-post="/api/settings/personal-key/revoke" hx-target="#personal-key-section" hx-swap="innerHTML" style="margin-top: 12px;">
+            <button type="submit" class="btn btn-secondary">Revoke Key</button>
+        </form>
+    </div>
+    '''
+    return HTMLResponse(html)
+
+
+@app.post("/api/settings/personal-key/revoke")
+async def api_revoke_personal_key(request: Request):
+    """Revoke the user's personal API key."""
+    user_id = await require_auth_api(request)
+    from auth import revoke_user_api_key
+    await revoke_user_api_key(user_id)
+
+    html = '''
+    <div class="key-status key-unset">
+        <p class="dim" style="margin-bottom: 8px;">No API key set.</p>
+        <form hx-post="/api/settings/personal-key" hx-target="#personal-key-section" hx-swap="innerHTML">
+            <button type="submit" class="btn btn-primary">Generate API Key</button>
+        </form>
+    </div>
+    '''
+    return HTMLResponse(html)
+
+
 # ─── Helpers ─────────────────────────────────────────────────
 
 def _escape(text: str) -> str:
@@ -1345,6 +1418,7 @@ def _escape(text: str) -> str:
         .replace("<", "&lt;")
         .replace(">", "&gt;")
         .replace('"', "&quot;")
+        .replace("'", "&#x27;")
     )
 
 
@@ -1516,10 +1590,10 @@ def _build_council_html(session: dict, reviews: dict, synthesis: dict, round_num
             source_reviewers = c.get("source_reviewers", [])
             source_chips = _model_chips(source_reviewers)
             html += f"""
-            <div class="change-item" data-change-id="{c["id"]}">
+            <div class="change-item" data-change-id="{_escape(c["id"])}">
                 <div class="change-info">
                     <div class="change-badges">
-                        <span class="change-category">{c.get("category", "other")}</span>
+                        <span class="change-category">{_escape(c.get("category", "other"))}</span>
                         <span class="badge {conf_class}">{conf}</span>
                     </div>
                     {"<p class='change-context'>" + _escape(c["context"]) + "</p>" if c.get("context") else ""}
@@ -1528,8 +1602,8 @@ def _build_council_html(session: dict, reviews: dict, synthesis: dict, round_num
                     <div class="change-source">{source_chips}</div>
                 </div>
                 <div class="change-actions">
-                    <button type="button" class="btn btn-accept" onclick="setDecision(this, '{c["id"]}', true)">Accept</button>
-                    <button type="button" class="btn btn-reject" onclick="setDecision(this, '{c["id"]}', false)">Reject</button>
+                    <button type="button" class="btn btn-accept" onclick="setDecision(this, '{_escape(c["id"])}', true)">Accept</button>
+                    <button type="button" class="btn btn-reject" onclick="setDecision(this, '{_escape(c["id"])}', false)">Reject</button>
                 </div>
             </div>
             """
