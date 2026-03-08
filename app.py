@@ -314,7 +314,7 @@ async def session_page(request: Request, session_id: str):
 
     # Free tier info for BYOK UX — admins bypass all limits
     user_is_admin = is_admin(user) if user else False
-    free_convenes_remaining = 999 if user_is_admin else (user.get("free_convenes_remaining", 3) if user else 0)
+    free_convenes_remaining = 999 if user_is_admin else (user.get("free_convenes_remaining", 2) if user else 0)
     has_api_key = True if user_is_admin else (user.get("has_api_key", False) if user else False)
 
     return templates.TemplateResponse("session.html", await _ctx(
@@ -851,7 +851,7 @@ async def api_convene(request: Request, session_id: str):
             return HTMLResponse(
                 '<div class="convene-progress">'
                 '<h3>Free reviews used up</h3>'
-                '<p>You\'ve used your free Council review.</p>'
+                '<p>You\'ve used your free Council reviews.</p>'
                 '<p>Add your own <a href="/settings" style="color: var(--accent); font-weight: 600;">OpenRouter API key</a> to keep reviewing.</p>'
                 '<p class="dim" style="margin-top: 12px;">OpenRouter lets you access multiple AI models with one key. Sign up free at openrouter.ai.</p>'
                 '</div>'

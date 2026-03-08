@@ -41,8 +41,8 @@
         <h3>Free Reviews</h3>
         <div class="free-tier-status">
             <div class="free-tier-dots">
-                {% for i in range(3) %}
-                <span class="free-tier-dot {% if i < (3 - user.free_convenes_remaining) %}used{% endif %}"></span>
+                {% for i in range(2) %}
+                <span class="free-tier-dot {% if i < (2 - user.free_convenes_remaining) %}used{% endif %}"></span>
                 {% endfor %}
             </div>
             <p>
@@ -51,7 +51,7 @@
                 {% elif user.free_convenes_remaining > 0 %}
                     You have <strong>{{ user.free_convenes_remaining }}</strong> free review{{ 's' if user.free_convenes_remaining != 1 else '' }} remaining.
                 {% else %}
-                    You've used your free review. Add your API key above to continue.
+                    You've used your free reviews. Add your API key above to continue.
                 {% endif %}
             </p>
         </div>

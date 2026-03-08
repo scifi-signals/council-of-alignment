@@ -32,7 +32,7 @@ if not ENCRYPTION_KEY:
 ENCRYPTION_KEY_OLD = os.getenv("ENCRYPTION_KEY_OLD", "")
 
 # Free tier: how many convenes a user gets before needing their own API key
-FREE_CONVENE_LIMIT = 1
+FREE_CONVENE_LIMIT = 2
 
 # Demo session: publicly visible without auth (landing page "See an example")
 DEMO_SESSION_ID = os.getenv("DEMO_SESSION_ID", "")
