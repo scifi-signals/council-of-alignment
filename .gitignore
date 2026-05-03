@@ -5,3 +5,7 @@ data/
 venv/
 *.db
 ChatGPT Image*
+mcp_server/dist/
+mcp_server/build/
+mcp_server/*.egg-info/
+reddit-post.md
